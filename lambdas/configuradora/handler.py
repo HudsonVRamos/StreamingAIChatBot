@@ -5078,8 +5078,16 @@ def handler(event: dict, context: Any) -> dict:
             })
 
         recurso_nome = resolved.get("_resolved_name", resource_id)
+        # Build METRICS_DATA marker so the Bedrock agent can include it
+        # in its response and the frontend can render charts
+        metrics_marker = (
+            f"[METRICS_DATA:{json.dumps(resumo, ensure_ascii=False, default=str)}]"
+        )
         return _bedrock_response(event, 200, {
-            "mensagem": f"Métricas do canal {recurso_nome} coletadas com sucesso",
+            "mensagem": (
+                f"Métricas do canal {recurso_nome} coletadas com sucesso. "
+                f"{metrics_marker}"
+            ),
             "recurso": recurso_nome,
             "servico": servico,
             "periodo": f"últimos {periodo_minutos} minutos",

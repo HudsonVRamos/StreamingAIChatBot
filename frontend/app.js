@@ -372,75 +372,11 @@ async function sendMessage(text) {
             return;
         }
 
-        // Direct metrics — bypass agent for structured chart data
-        // Also handle pending metrics disambiguation
-        if (pendingMetricsQuery || isMetricsRequest(text)) {
-            let params;
-            if (pendingMetricsQuery) {
-                // User is choosing from disambiguation list
-                params = { ...pendingMetricsQuery };
-                params.resource_id = text.trim();
-                pendingMetricsQuery = null;
-                console.log('[METRICS] Disambiguation choice:', params);
-            } else {
-                params = extractMetricsParams(text);
-                console.log('[METRICS] Detected request:', params);
-            }
-            if (params.resource_id) {
-                console.log('[METRICS] Calling API with:', JSON.stringify(params));
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ consultar_metricas: true, ...params }),
-                });
-
-                hideLoading();
-
-                if (response.ok) {
-                    const data = await response.json();
-                    console.log('[METRICS] Response:', JSON.stringify(data).substring(0, 500));
-
-                    // Multiple candidates — save state and ask user to choose
-                    if (data.multiplos_resultados) {
-                        pendingMetricsQuery = params;
-                        let msg = 'Encontrei múltiplos recursos. Qual deles?\n';
-                        (data.candidatos || []).forEach((c, i) => {
-                            msg += (i + 1) + '. ' + (c.nome || c.Name || c.Id || c) + '\n';
-                        });
-                        addMessage(msg, 'bot');
-                        setInputEnabled(true);
-                        chatInput.focus();
-                        return;
-                    }
-
-                    // Build text summary
-                    const resumo = data.metrics_chart_data;
-                    if (resumo) {
-                        const sev = resumo.severidade_geral || 'INFO';
-                        const sevEmoji = sev === 'INFO' ? '✅' : sev === 'WARNING' ? '⚠️' : sev === 'ERROR' ? '❌' : '🚨';
-                        let msg = sevEmoji + ' ' + (data.recurso || params.resource_id) + ' — ' + sev + '\n';
-                        if (resumo.alertas && resumo.alertas.length > 0) {
-                            msg += '\nAlertas:\n';
-                            resumo.alertas.forEach(a => {
-                                msg += '• ' + a.metrica + ': ' + a.valor + ' (' + a.severidade + ')\n';
-                            });
-                        } else {
-                            msg += 'Nenhum alerta ativo. Operando normalmente.';
-                        }
-                        addMessage(msg, 'bot');
-                        renderMetricsCharts(resumo);
-                    } else {
-                        addMessage(data.resposta || 'Sem dados de métricas.', 'bot');
-                    }
-                } else {
-                    const err = await response.json().catch(() => ({}));
-                    addMessage(err.erro || 'Erro ao consultar métricas.', 'error');
-                }
-                setInputEnabled(true);
-                chatInput.focus();
-                return;
-            }
-        }
+        // Direct metrics fast path DISABLED — metrics now go through Bedrock agent
+        // The agent calls /consultarMetricas and returns [METRICS_DATA:{...}] marker
+        // which is detected and rendered by the normal chat flow below.
+        // Keeping pendingMetricsQuery reset for safety:
+        if (pendingMetricsQuery) pendingMetricsQuery = null;
 
         // Normal chat — via Bedrock agent
         const response = await fetch(API_URL, {
@@ -480,6 +416,26 @@ async function sendMessage(text) {
             // Check for analytics chart marker
             const chartMatch = resposta.match(/\[CHART_DATA:(\{[\s\S]*?\})\]/);
 
+            // Check for metrics data marker (from consultarMetricas via agent)
+            // Use a function to extract balanced JSON instead of regex
+            const metricsMatch = (() => {
+                const tag = '[METRICS_DATA:';
+                const idx = resposta.indexOf(tag);
+                if (idx === -1) return null;
+                const jsonStart = idx + tag.length;
+                let depth = 0, i = jsonStart;
+                while (i < resposta.length) {
+                    if (resposta[i] === '{') depth++;
+                    else if (resposta[i] === '}') { depth--; if (depth === 0) break; }
+                    i++;
+                }
+                if (depth !== 0) return null;
+                try {
+                    const jsonStr = resposta.slice(jsonStart, i + 1);
+                    return [resposta.slice(idx, i + 2), jsonStr]; // [fullMatch, jsonStr]
+                } catch { return null; }
+            })();
+
             // Check for analytics CSV download marker
             const csvMatch = resposta.match(/\[DOWNLOAD_ANALYTICS_CSV:([^:]+):([A-Za-z0-9+/=]+)\]/);
 
@@ -488,6 +444,7 @@ async function sendMessage(text) {
             if (configDlMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_CONFIG:[^\]]+\]/, '').trim();
             if (exportDlMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_EXPORT:[^\]]+\]/, '').trim();
             if (chartMatch) cleanResposta = cleanResposta.replace(/\[CHART_DATA:\{[\s\S]*?\}\]/, '').trim();
+            if (metricsMatch) cleanResposta = cleanResposta.replace(metricsMatch[0], '').trim();
             if (csvMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_ANALYTICS_CSV:[^\]]+\]/, '').trim();
 
             // Display the clean text
@@ -507,6 +464,15 @@ async function sendMessage(text) {
                 if (textChart) renderAnalyticsChart(textChart);
             }
 
+            // Render metrics charts if METRICS_DATA marker present (from agent via consultarMetricas)
+            if (metricsMatch) {
+                try {
+                    const metricsData = JSON.parse(metricsMatch[1]);
+                    renderMetricsCharts(metricsData);
+                } catch (e) {
+                    console.warn('Failed to parse metrics data:', e.message);
+                }
+            }
             // Render CSV download button if present
             if (csvMatch) {
                 const csvFilename = csvMatch[1];
