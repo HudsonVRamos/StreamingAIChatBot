@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\bedrock_agent_stack.py
+# hypothesis_version: 6.141.1
+
+[600, 'BedrockAgentRole', 'ENABLED', 'bedrock:InvokeModel', 'bedrock:Retrieve', 'live']

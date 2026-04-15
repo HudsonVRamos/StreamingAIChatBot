@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-04-13" agent="Kiro" version="24.0.0" type="device">
+  <diagram id="chatbot-flow" name="Fluxo de Consulta via Chatbot">
+    <mxGraphModel dx="1200" dy="700" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- TÍTULO -->
+        <mxCell id="title" value="Fluxo de Consulta — Chatbot com RAG" style="text;html=1;fontSize=18;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="250" y="10" width="600" height="40" as="geometry"/>
+        </mxCell>
+
+        <!-- OPERADOR -->
+        <mxCell id="user" value="Operador NOC" style="shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.user;labelBackgroundColor=none;sketch=0;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="200" width="50" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- FRONTEND -->
+        <mxCell id="frontend" value="Frontend&#xa;(CloudFront + S3)&#xa;Chat UI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E1F5FE;strokeColor=#0288D1;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="170" y="190" width="130" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- COGNITO -->
+        <mxCell id="cognito" value="Cognito&#xa;(JWT Auth)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE4EC;strokeColor=#C62828;fontStyle=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="170" y="80" width="130" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- LAMBDA ORQUESTRADORA -->
+        <mxCell id="lambda-orq" value="Lambda&#xa;Orquestradora&#xa;(Function URL&#xa;5min timeout)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;fontStyle=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="380" y="180" width="140" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- BEDROCK AGENT -->
+        <mxCell id="bedrock" value="Amazon Bedrock&#xa;Agent&#xa;(Claude — PT-BR)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8EAF6;strokeColor=#3F51B5;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="600" y="185" width="170" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- KB CONFIG -->
+        <mxCell id="kb-config" value="Knowledge Base&#xa;KB_CONFIG&#xa;(~220 canais — JSON flat)&#xa;&#xa;channel_id, servico, codec,&#xa;resolucoes, bitrates..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontStyle=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="850" y="80" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- KB LOGS -->
+        <mxCell id="kb-logs" value="Knowledge Base&#xa;KB_LOGS&#xa;(Eventos Estruturados)&#xa;&#xa;timestamp, severidade,&#xa;tipo_erro, recomendação..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;fontStyle=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="850" y="270" width="200" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- RESPOSTA -->
+        <mxCell id="response" value="💬 Resposta&#xa;contextualizada&#xa;em português" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E5F5;strokeColor=#7B1FA2;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="380" y="380" width="170" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- EXEMPLOS -->
+        <mxCell id="examples" value="Exemplos de perguntas:&#xa;&#xa;• &quot;Quais canais estão com resolução 1080p?&quot;&#xa;• &quot;Mostre os erros críticos das últimas 24h&quot;&#xa;• &quot;Qual a configuração do canal X?&quot;&#xa;• &quot;Quais canais usam codec H.265?&quot;&#xa;• &quot;Exporte todos os canais MediaLive em CSV&quot;" style="text;html=1;fontSize=10;align=left;verticalAlign=top;fillColor=#ECEFF1;strokeColor=#90A4AE;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="380" width="280" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- SETAS -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;" edge="1" source="user" target="frontend" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1b" value="auth" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1.5;strokeColor=#C62828;dashed=1;fontSize=9;" edge="1" source="frontend" target="cognito" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="pergunta" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#E65100;fontSize=10;" edge="1" source="frontend" target="lambda-orq" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="invoca agente" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#3F51B5;fontSize=10;" edge="1" source="lambda-orq" target="bedrock" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" value="RAG query" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#2E7D32;fontSize=9;" edge="1" source="bedrock" target="kb-config" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" value="RAG query" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#2E7D32;fontSize=9;" edge="1" source="bedrock" target="kb-logs" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" value="resposta" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=2;strokeColor=#7B1FA2;fontSize=10;" edge="1" source="lambda-orq" target="response" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Seta de retorno -->
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeWidth=1.5;strokeColor=#7B1FA2;dashed=1;" edge="1" source="response" target="frontend" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="160" y="410"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

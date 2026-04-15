@@ -1,0 +1,56 @@
+{
+  "/StreamingChatbotPipelineConfigStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/PipelineConfigFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PipelineConfigFunction079AFC45"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/PipelineConfigSchedule/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PipelineConfigSchedule2F7459B3"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/PipelineConfigSchedule/AllowEventRuleStreamingChatbotPipelineConfigStackPipelineConfigFunction6DE78ECA": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PipelineConfigScheduleAllowEventRuleStreamingChatbotPipelineConfigStackPipelineConfigFunction6DE78ECA848EAF39"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/CDKMetadata/Condition": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadataAvailable"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/PipelineConfigFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PipelineConfigFunctionServiceRoleEBF3BCEC"
+    }
+  ],
+  "/StreamingChatbotPipelineConfigStack/PipelineConfigFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "PipelineConfigFunctionServiceRoleDefaultPolicy98DE9A92"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\pipeline_logs_stack.py
+# hypothesis_version: 6.141.1
+
+['*', 'KB_LOGS_BUCKET', 'KB_LOGS_PREFIX', 'PipelineLogsFunction', 'PipelineLogsSchedule', 'handler.handler', 'kb-logs/', 'logs:FilterLogEvents']

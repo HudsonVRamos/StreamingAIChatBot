@@ -1,0 +1,13 @@
+{
+  "ChannelName": "0001_WARNER_CHANNEL",
+  "InputType": "HLS",
+  "InputSwitchConfiguration": {
+    "MQCSInputSwitching": false
+  },
+  "OutputHeaderConfiguration": {
+    "PublishMQCS": false
+  },
+  "Tags": {
+    "channel": "teste"
+  }
+}

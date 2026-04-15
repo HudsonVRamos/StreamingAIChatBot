@@ -1,0 +1,122 @@
+{
+  "/StreamingChatbotApiStack/ApiUrl": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ApiUrl"
+    }
+  ],
+  "/StreamingChatbotApiStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/StreamingChatbotApiStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/StreamingChatbotApiStack/OrquestradoraFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "OrquestradoraFunctionC93F4B46"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiD29796E1"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Account": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiAccount35628D82"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Endpoint": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiEndpoint467C6B40"
+    }
+  ],
+  "/StreamingChatbotApiStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/StreamingChatbotApiStack/CDKMetadata/Condition": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadataAvailable"
+    }
+  ],
+  "/StreamingChatbotApiStack/OrquestradoraFunction/ServiceRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "OrquestradoraFunctionServiceRole75D7971E"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/CloudWatchRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiCloudWatchRole9963F83E"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Deployment/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiDeploymentE71C0DD2c94fabde4d24278fd648a25acf440515"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/DeploymentStage.prod/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiDeploymentStageprodE9C01931"
+    }
+  ],
+  "/StreamingChatbotApiStack/OrquestradoraFunction/ServiceRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "OrquestradoraFunctionServiceRoleDefaultPolicyF98B569D"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Default/OPTIONS/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApiOPTIONS49C3739C"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Default/chat/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApichatFDA23F51"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Default/chat/OPTIONS/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApichatOPTIONSAD702F28"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Default/chat/POST/ApiPermission.StreamingChatbotApiStackChatApi6BD2AB15.POST..chat": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApichatPOSTApiPermissionStreamingChatbotApiStackChatApi6BD2AB15POSTchat05A0DF95"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Default/chat/POST/ApiPermission.Test.StreamingChatbotApiStackChatApi6BD2AB15.POST..chat": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApichatPOSTApiPermissionTestStreamingChatbotApiStackChatApi6BD2AB15POSTchat6D212960"
+    }
+  ],
+  "/StreamingChatbotApiStack/ChatApi/Default/chat/POST/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ChatApichatPOST13AF4106"
+    }
+  ]
+}

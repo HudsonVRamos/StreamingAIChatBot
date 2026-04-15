@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\lambdas\pipeline_ads\handler.py
+# hypothesis_version: 6.141.1
+
+[1000, '/api/v1/auth', '/api/v1/creatives', '/api/v1/demand_tags', '/api/v1/reports', '/api/v1/supply_tags', 'GET', 'auth', 'creatives', 'current_page', 'delivery_modifiers', 'demand_labels', 'demand_tags', 'page', 'per', 'reports', 'results', 'scheduled_reports', 'supply_labels', 'supply_tags', 'total_pages']

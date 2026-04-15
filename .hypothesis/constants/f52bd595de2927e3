@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\lambdas\shared\validators.py
+# hypothesis_version: 6.141.1
+
+['CRITICAL', 'CloudFront', 'CloudWatch', 'ERROR', 'INFO', 'MediaLive', 'MediaPackage', 'MediaTailor', 'WARNING', 'canal', 'channel_id', 'configuracao', 'dados', 'descricao', 'documentacao', 'kb-config', 'kb-logs', 'pratica', 'servico', 'severidade', 'timestamp', 'tipo', 'tipo_erro']

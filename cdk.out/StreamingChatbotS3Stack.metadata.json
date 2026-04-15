@@ -1,0 +1,206 @@
+{
+  "/StreamingChatbotS3Stack/Custom::S3AutoDeleteObjectsCustomResourceProvider": [
+    {
+      "type": "aws:cdk:is-custom-resource-handler-customResourceProvider",
+      "data": true
+    }
+  ],
+  "/StreamingChatbotS3Stack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/StreamingChatbotS3Stack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/StreamingChatbotS3Stack/KBConfigBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KBConfigBucketFCBD41B2"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketAutoDeleteObjects"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+    }
+  ],
+  "/StreamingChatbotS3Stack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F"
+    }
+  ],
+  "/StreamingChatbotS3Stack/KBLogsBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KBLogsBucket3E8A8F80"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketAutoDeleteObjects"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/AuditBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AuditBucketB01E0AE8"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketAutoDeleteObjects"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/ExportsBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsBucket5A12738B"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketAutoDeleteObjects"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/FrontendBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketEFE2E19C"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketAutoDeleteObjects"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/StreamingChatbotS3Stack/CDKMetadata/Condition": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadataAvailable"
+    }
+  ],
+  "/StreamingChatbotS3Stack/Exports/Output{\"Fn::GetAtt\":[\"KBConfigBucketFCBD41B2\",\"Arn\"]}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputFnGetAttKBConfigBucketFCBD41B2ArnB3CEE605"
+    }
+  ],
+  "/StreamingChatbotS3Stack/Exports/Output{\"Ref\":\"KBConfigBucketFCBD41B2\"}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputRefKBConfigBucketFCBD41B2BF0466BE"
+    }
+  ],
+  "/StreamingChatbotS3Stack/KBConfigBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KBConfigBucketPolicy8E2F5C7D"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketPolicyStatements"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/KBConfigBucket/AutoDeleteObjectsCustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KBConfigBucketAutoDeleteObjectsCustomResource7989B283"
+    }
+  ],
+  "/StreamingChatbotS3Stack/KBLogsBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KBLogsBucketPolicy6A921767"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketPolicyStatements"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/KBLogsBucket/AutoDeleteObjectsCustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KBLogsBucketAutoDeleteObjectsCustomResourceFEEC91E2"
+    }
+  ],
+  "/StreamingChatbotS3Stack/AuditBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AuditBucketPolicy9F807F4B"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketPolicyStatements"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/AuditBucket/AutoDeleteObjectsCustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AuditBucketAutoDeleteObjectsCustomResource90C6E1EF"
+    }
+  ],
+  "/StreamingChatbotS3Stack/ExportsBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsBucketPolicyF65C412E"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketPolicyStatements"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/ExportsBucket/AutoDeleteObjectsCustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsBucketAutoDeleteObjectsCustomResource12EF524C"
+    }
+  ],
+  "/StreamingChatbotS3Stack/FrontendBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketPolicy1DFF75D9"
+    },
+    {
+      "type": "aws:cdk:analytics:mixin",
+      "data": {
+        "mixin": "aws-cdk-lib.aws_s3.mixins.BucketPolicyStatements"
+      }
+    }
+  ],
+  "/StreamingChatbotS3Stack/FrontendBucket/AutoDeleteObjectsCustomResource/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "FrontendBucketAutoDeleteObjectsCustomResourceDB860B32"
+    }
+  ]
+}

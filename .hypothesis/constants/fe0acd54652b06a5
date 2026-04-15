@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\pipeline_config_stack.py
+# hypothesis_version: 6.141.1
+
+['*', 'KB_CONFIG_BUCKET', 'KB_CONFIG_PREFIX', 'handler.handler', 'kb-config/']

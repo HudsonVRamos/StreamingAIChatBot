@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\exportadora_stack.py
+# hypothesis_version: 6.141.1
+
+['3600', 'EXPORTS_BUCKET', 'EXPORTS_PREFIX', 'ExportadoraFunction', 'KB_CONFIG_BUCKET', 'KB_CONFIG_PREFIX', 'KB_LOGS_BUCKET', 'KB_LOGS_PREFIX', 'PRESIGNED_URL_EXPIRY', 'exports/', 'handler.handler', 'kb-config/', 'kb-logs/', 'lambdas/exportadora']

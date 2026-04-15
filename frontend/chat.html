@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Chatbot</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="chat-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h1 style="color: var(--accent); font-size: 1.1rem;">⚡ Streaming Chatbot</h1>
+
+            <span class="sidebar-title">Sugestões de perguntas</span>
+
+            <div style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; flex: 1;">
+
+            <span class="sidebar-title" style="margin-top: 4px;">📺 MediaLive</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quantos canais MediaLive existem?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais estão com estado RUNNING?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais usam codec H.264?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais são low latency?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm segmento de 2 segundos?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm failover habilitado?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais Globo existem?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais ESPN existem?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais DSPORTS existem?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual a configuração do canal 0001_WARNER_CHANNEL?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm resolução 1280x720?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm mais de 2 áudios?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm legenda DVB_SUB?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais usam output HLS?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o GOP dos canais?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm framerate 29.97?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm bitrate acima de 3000000?</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">📦 MediaPackage</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais MediaPackage existem?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais endpoints HLS estão configurados?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm DRM FAIRPLAY?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm DRM WIDEVINE?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm startover habilitado?</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">📢 MediaTailor</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais configurações MediaTailor existem?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais têm preroll habilitado?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o ad server URL do canal live_1097?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais usam avail suppression?</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">☁️ CloudFront</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais distribuições CloudFront estão ativas?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais distribuições têm origin MediaTailor?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais distribuições têm Origin Shield?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais distribuições usam PriceClass_All?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais CloudFront Functions estão em uso?</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">📢 Anúncios / SpringServe</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais supply tags existem no SpringServe?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais demand tags estão ativas?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o fill rate do canal live_1097?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual a correlação entre canais MediaTailor e SpringServe?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais delivery modifiers estão ativos?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais creatives estão associados ao demand tag X?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar supply tags em CSV</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar relatório de fill rate em JSON</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">O que é uma supply tag no SpringServe?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Como funciona a autenticação da API SpringServe?</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">🔍 Logs &amp; Métricas</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual a saúde de todos os canais?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Health check de todos os canais MediaLive</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Dashboard de saúde geral</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais tiveram alertas nas últimas 24 horas?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Algum canal teve perda de input hoje?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais tiveram failover recentemente?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o status do canal 0001_WARNER_CHANNEL?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Houve erros 5xx no CloudFront hoje?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o fill rate do MediaTailor nas últimas horas?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Algum canal teve frames perdidos?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais canais estão com latência alta no MediaPackage?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Houve parada de ingestão em algum canal?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Métricas do canal Warner na última hora</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais erros aconteceram nos últimos 7 dias?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Resumo de saúde de todos os canais MediaLive</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">📊 Exportações</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o maior egress do MediaPackage hoje?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o fill rate médio do MediaTailor?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Top 10 canais com mais tráfego no CloudFront</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual canal MediaLive teve mais alertas hoje?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o pico de bandwidth do MediaPackage nas últimas 24h?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual canal teve mais frames perdidos?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar lista de todos os canais MediaLive em CSV</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar canais com low latency em JSON</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar canais com codec H.264 em CSV</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar todas as distribuições CloudFront</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exportar configurações MediaTailor em JSON</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">⚙️ Criar/Modificar</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Crie um canal MediaLive com input SRT, codec H.264, resolução 1080p e output HLS</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Crie um canal MediaLive com input RTMP e output DASH</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Altere o bitrate do canal 0001_WARNER_CHANNEL para 5000000</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Crie um endpoint HLS no MediaPackage para o canal 0001_WARNER_CHANNEL</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Crie uma configuração MediaTailor para o canal 0001_WARNER_CHANNEL</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Crie uma distribuição CloudFront para o canal 0001_WARNER_CHANNEL</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Modifique o endpoint HLS do canal WARNER no MediaPackage V2</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Altere o segment duration do endpoint DASH do canal WARNER para 4 segundos</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Mude o bitrate do vídeo do canal WARNER para 5000000</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Adicione um output Full HD (1920x1080) ao canal WARNER</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Mude o GOP do canal WARNER para 2 segundos</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Adicione um áudio ao canal WARNER</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Mude o framerate do canal WARNER para 30fps</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Mude a resolução do canal WARNER para 1920x1080</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">▶️ Start/Stop</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Inicie o canal 0001_WARNER_CHANNEL</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Pare o canal 0001_WARNER_CHANNEL</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual o estado atual do canal WARNER?</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">🗑️ Excluir</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exclua o canal MediaLive TESTE_KIRO</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exclua o endpoint HLS do canal TESTE_KIRO no MediaPackage V2</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Exclua a configuração MediaTailor do canal TESTE</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">📋 Listar Recursos</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Liste todos os canais MediaLive direto da API</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Liste todos os endpoints MediaPackage V2</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Liste todas as configurações MediaTailor</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Liste todas as distribuições CloudFront</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">🔀 Comparar</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Compare o canal WARNER com o canal ESPN</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Compare os endpoints HLS do WARNER e do ESPN</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual a diferença entre o canal GLOBO e o canal BAND?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Compare as configurações MediaTailor do WARNER e do ESPN</button>
+
+            <span class="sidebar-title" style="margin-top: 8px;">📚 Conceitos</span>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">O que é GOP e qual o valor ideal?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual a diferença entre HLS e DASH?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">O que é low latency streaming?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Como funciona o failover no MediaLive?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">O que é Origin Shield no CloudFront?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Como funciona a inserção de anúncios no MediaTailor?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Qual a melhor prática para ingest SRT?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">O que é CMAF e quando usar?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Quais são as boas práticas de encoding para streaming ao vivo?</button>
+            <button class="suggestion-btn" onclick="useSuggestion(this)">Como funciona DRM com FAIRPLAY e WIDEVINE?</button>
+
+            </div>
+
+            <div class="sidebar-footer">
+                Powered by Amazon Bedrock
+            </div>
+        </aside>
+
+        <!-- Chat -->
+        <div class="chat-container" role="main">
+            <header class="chat-header">
+                <h1>Streaming Chatbot</h1>
+                <button id="logout-btn" class="logout-btn">Sair</button>
+            </header>
+            <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+            <div id="loading-indicator" class="loading-indicator" aria-hidden="true" role="status">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                <span class="sr-only">Processando...</span>
+            </div>
+            <form id="chat-form" class="chat-input-area">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Pergunte sobre seus canais de streaming..." autocomplete="off" />
+                <button type="submit" id="send-btn" class="send-btn">Enviar</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\api_stack.py
+# hypothesis_version: 6.141.1
+
+['*', 'AGENT_ALIAS_ID', 'AGENT_ID', 'ApiUrl', 'ChatApi', 'Content-Type', 'OPTIONS', 'PLACEHOLDER_AGENT_ID', 'POST', 'StreamingChatbotApi', 'bedrock:InvokeAgent', 'chat', 'handler.handler']

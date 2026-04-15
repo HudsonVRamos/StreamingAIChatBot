@@ -1,0 +1,53 @@
+{
+  "OriginEndpointName": "0001_WARNER_CHANNEL_DASH",
+  "ContainerType": "CMAF",
+  "Segment": {
+    "SegmentDurationSeconds": 6,
+    "SegmentName": "segment",
+    "TsUseAudioRenditionGroup": true,
+    "IncludeIframeOnlyStreams": false,
+    "TsIncludeDvbSubtitles": true,
+    "Encryption": {
+      "EncryptionMethod": {
+        "CmafEncryptionMethod": "CENC"
+      },
+      "SpekeKeyProvider": {
+        "EncryptionContractConfiguration": {
+          "PresetSpeke20Audio": "SHARED",
+          "PresetSpeke20Video": "SHARED"
+        },
+        "ResourceId": "Live_0001",
+        "DrmSystems": [
+          "PLAYREADY",
+          "WIDEVINE"
+        ],
+        "RoleArn": "arn:aws:iam::761018874615:role/APIInvokeMediaPackageV2",
+        "Url": "https://wgz3208af4.execute-api.sa-east-1.amazonaws.com/PROD_V2/NOKR"
+      }
+    }
+  },
+  "StartoverWindowSeconds": 14460,
+  "DashManifests": [
+    {
+      "ManifestName": "manifest",
+      "ManifestWindowSeconds": 7200,
+      "   ": 6,
+      "MinBufferTimeSeconds": 2,
+      "SuggestedPresentationDelaySeconds": 12,
+      "SegmentTemplateFormat": "NUMBER_WITH_TIMELINE",
+      "PeriodTriggers": [
+        "AVAILS",
+        "DRM_KEY_ROTATION",
+        "SOURCE_CHANGES",
+        "SOURCE_DISRUPTIONS"
+      ],
+      "DrmSignaling": "INDIVIDUAL",
+      "UtcTiming": {
+        "TimingMode": "UTC_DIRECT"
+      },
+      "Compactness": "STANDARD",
+      "MinUpdatePeriodSeconds": 6
+    }
+  ],
+  "Tags": {}
+}

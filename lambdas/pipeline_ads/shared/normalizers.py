@@ -1,0 +1,218 @@
+"""Normalization module for SpringServe ad data — flat JSON output.
+
+Each normalizer produces a flat dict (no nesting) with all relevant
+fields extracted from the raw SpringServe API response.
+Follows the same pattern as pipeline_config/shared/normalizers.py.
+
+Validates: Requirements 2.2, 3.2, 4.2, 5.1, 5.2, 5.3, 6.3,
+           9.1, 9.2, 9.3, 9.4
+"""
+
+from __future__ import annotations
+
+from typing import Any, Dict
+
+
+def normalize_supply_tag(
+    raw: dict,
+    demand_priorities: list | None = None,
+) -> Dict[str, Any]:
+    """Normalize a raw SpringServe supply tag to flat JSON.
+
+    Args:
+        raw: Raw supply tag dict from the API.
+        demand_priorities: List of demand_tag_priority dicts
+            from GET /supply_tags/{id}/demand_tag_priorities.
+    """
+    supply_id = raw.get("id", "")
+    demand_priorities = demand_priorities or []
+
+    demand_names = [
+        str(d.get("demand_tag_name", d.get("name", "")))
+        for d in demand_priorities
+    ]
+    demand_ids = [
+        str(d.get("demand_tag_id", d.get("id", "")))
+        for d in demand_priorities
+    ]
+
+    return {
+        "channel_id": f"supply_tag_{supply_id}",
+        "servico": "SpringServe",
+        "tipo": "supply_tag",
+        "supply_tag_id": supply_id,
+        "nome": raw.get("name", ""),
+        "status": (
+            "active" if raw.get("is_active") else "inactive"
+        ),
+        "account_id": raw.get("account_id"),
+        "demand_tag_count": len(demand_priorities),
+        "demand_tags": ", ".join(demand_names) if demand_names else "",
+        "demand_tag_ids": ", ".join(demand_ids) if demand_ids else "",
+        "created_at": raw.get("created_at", ""),
+        "updated_at": raw.get("updated_at", ""),
+    }
+
+
+def normalize_demand_tag(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe demand tag to flat JSON."""
+    demand_id = raw.get("id", "")
+    supply_ids = raw.get("supply_tag_ids", []) or []
+
+    return {
+        "channel_id": f"demand_tag_{demand_id}",
+        "servico": "SpringServe",
+        "tipo": "demand_tag",
+        "demand_tag_id": demand_id,
+        "nome": raw.get("name", ""),
+        "status": (
+            "active" if raw.get("is_active") else "inactive"
+        ),
+        "demand_type": raw.get("type", raw.get("demand_type", "")),
+        "supply_tag_ids": ", ".join(str(s) for s in supply_ids),
+    }
+
+
+def normalize_report(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe report row to flat JSON."""
+    supply_id = raw.get("supply_tag_id", "")
+
+    return {
+        "channel_id": f"report_supply_{supply_id}",
+        "servico": "SpringServe",
+        "tipo": "report",
+        "supply_tag_id": supply_id,
+        "supply_tag_name": raw.get("supply_tag_name", ""),
+        "fill_rate": raw.get("fill_rate"),
+        "total_impressions": raw.get(
+            "impressions", raw.get("total_impressions")
+        ),
+        "total_revenue": raw.get("revenue", raw.get("total_revenue")),
+        "total_cost": raw.get("total_cost"),
+        "cpm": raw.get("cpm"),
+        "data_inicio": raw.get("data_inicio", raw.get("start_date", "")),
+        "data_fim": raw.get("data_fim", raw.get("end_date", "")),
+    }
+
+
+def normalize_delivery_modifier(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe delivery modifier to flat JSON."""
+    modifier_id = raw.get("id", "")
+    dtag_ids = raw.get("demand_tag_ids", []) or []
+
+    return {
+        "channel_id": f"delivery_modifier_{modifier_id}",
+        "servico": "SpringServe",
+        "tipo": "delivery_modifier",
+        "modifier_id": modifier_id,
+        "nome": raw.get("name", ""),
+        "descricao": raw.get("description", ""),
+        "ativo": bool(raw.get("active", raw.get("is_active", False))),
+        "demand_tag_ids": ", ".join(str(d) for d in dtag_ids),
+        "multiplier_interaction": raw.get(
+            "multiplier_interaction", ""
+        ),
+    }
+
+
+def normalize_creative(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe creative to flat JSON."""
+    creative_id = raw.get("id", "")
+
+    return {
+        "channel_id": f"creative_{creative_id}",
+        "servico": "SpringServe",
+        "tipo": "creative",
+        "creative_id": creative_id,
+        "nome": raw.get("name", ""),
+        "creative_type": raw.get("creative_type", raw.get("type", "")),
+        "status": (
+            "active" if raw.get("is_active") else "inactive"
+        ),
+        "demand_tag_id": raw.get("demand_tag_id"),
+        "format": raw.get("format", ""),
+        "duration": raw.get("duration"),
+    }
+
+
+def normalize_label(
+    raw: dict,
+    label_type: str = "supply",
+) -> Dict[str, Any]:
+    """Normalize a raw SpringServe label to flat JSON.
+
+    Args:
+        raw: Raw label dict from the API.
+        label_type: "supply" or "demand".
+    """
+    label_id = raw.get("id", "")
+    tipo = f"{label_type}_label"
+
+    return {
+        "channel_id": f"{tipo}_{label_id}",
+        "servico": "SpringServe",
+        "tipo": tipo,
+        "label_id": label_id,
+        "nome": raw.get("name", ""),
+    }
+
+
+def normalize_scheduled_report(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe scheduled report to flat JSON."""
+    report_id = raw.get("id", "")
+    dims = raw.get("dimensions", []) or []
+    metrics = raw.get("metrics", []) or []
+
+    return {
+        "channel_id": f"scheduled_report_{report_id}",
+        "servico": "SpringServe",
+        "tipo": "scheduled_report",
+        "report_id": report_id,
+        "nome": raw.get("name", ""),
+        "frequency": raw.get("frequency", ""),
+        "status": (
+            "active" if raw.get("is_active", raw.get("active")) else "inactive"
+        ),
+        "dimensions": (
+            ", ".join(str(d) for d in dims)
+            if isinstance(dims, list) else str(dims)
+        ),
+        "metrics": (
+            ", ".join(str(m) for m in metrics)
+            if isinstance(metrics, list) else str(metrics)
+        ),
+    }
+
+
+def normalize_correlation(
+    mt_config: dict,
+    supply_tag: dict,
+    report_data: dict | None = None,
+) -> Dict[str, Any]:
+    """Normalize a MediaTailor↔SpringServe correlation to flat JSON.
+
+    Args:
+        mt_config: MediaTailor playback configuration dict.
+        supply_tag: Normalized supply tag dict.
+        report_data: Optional normalized report dict with metrics.
+    """
+    mt_name = mt_config.get("Name", mt_config.get("nome_canal", ""))
+    report_data = report_data or {}
+
+    return {
+        "channel_id": f"correlacao_{mt_name}",
+        "servico": "Correlacao",
+        "tipo": "canal_springserve",
+        "mediatailor_name": mt_name,
+        "mediatailor_ad_server_url": mt_config.get(
+            "AdDecisionServerUrl",
+            mt_config.get("ad_server_url", ""),
+        ),
+        "supply_tag_id": supply_tag.get("supply_tag_id", ""),
+        "supply_tag_name": supply_tag.get("nome", ""),
+        "demand_tags_associadas": supply_tag.get("demand_tags", ""),
+        "fill_rate_atual": report_data.get("fill_rate"),
+        "total_impressions_24h": report_data.get(
+            "total_impressions"
+        ),
+    }

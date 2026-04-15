@@ -1,0 +1,30 @@
+{
+  "Name": "live_1097",
+  "AdDecisionServerUrl": "https://tv-iad.springserve.com/rt/39836?cb=[avail.random]&ip=[session.client_ip]&ua=[session.user_agent]&pod_max_dur=41&format=pre&env=[player_params.deviceType]&uat=[player_params.accountType]&did=[player_params.deviceId]&sky_aid=[player_params.accountId]&channel_name=MTV%20Brasil&content_genre=Arts%20%26%20Entertainment",
+  "VideoContentSourceUrl": "https://d24kkslq1o3plu.cloudfront.net",
+  "CdnConfiguration": {
+    "ContentSegmentUrlPrefix": "https://6000-aws-da-mt-h.vrioott.com"
+  },
+  "DashConfiguration": {
+    "MpdLocation": "EMT_DEFAULT",
+    "OriginManifestType": "SINGLE_PERIOD"
+  },
+  "ManifestProcessingRules": {
+    "AdMarkerPassthrough": {
+      "Enabled": false
+    }
+  },
+  "AvailSuppression": {
+    "Mode": "BEHIND_LIVE_EDGE",
+    "Value": "00:00:00",
+    "FillPolicy": "FULL_AVAIL_ONLY"
+  },
+  "LivePreRollConfiguration": {
+    "AdDecisionServerUrl": "https://tv-iad.springserve.com/rt/39836?cb=[avail.random]&ip=[session.client_ip]&ua=[session.user_agent]&pod_max_dur=41&format=pre&env=[player_params.deviceType]&uat=[player_params.accountType]&did=[player_params.deviceId]&sky_aid=[player_params.accountId]&channel_name=MTV%20Brasil&content_genre=Arts%20%26%20Entertainment"
+  },
+  "TranscodeProfileName": "",
+  "AdConditioningConfiguration": {
+    "StreamingMediaFileConditioning": "TRANSCODE"
+  },
+  "Tags": {}
+}

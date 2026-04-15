@@ -1,0 +1,259 @@
+# Plano de Implementação: Agendamento de Operações
+
+## Visão Geral
+
+Implementação do Agendamento de Operações no Streaming Chatbot. O trabalho envolve: criar a tabela DynamoDB `ScheduledOperations` com GSI_Canal e GSI_Data no CDK; implementar a nova Lambda_Scheduler (`lambdas/scheduler/handler.py`) com lógica de execução, retry com backoff exponencial, notificação SNS e auditoria S3; adicionar três funções na Lambda_Configuradora existente (`_criar_agendamento`, `_listar_agendamentos`, `_cancelar_agendamento`); atualizar o schema OpenAPI, o prompt do Agente_Bedrock e o frontend. Todos os testes usam Python com Hypothesis para property-based testing.
+
+## Tarefas
+
+- [ ] 1. Infraestrutura CDK — Tabela DynamoDB e IAM Roles
+  - [ ] 1.1 Criar tabela DynamoDB `ScheduledOperations` em `stacks/main_stack.py`
+    - PK=`schedule_id` (String), SK=`status` (String), billing mode PAY_PER_REQUEST
+    - TTL no atributo `ttl_expiracao`
+    - _Requisitos: 3.1, 3.5, 3.6, 12.1_
+  - [ ] 1.2 Criar GSI_Canal na tabela ScheduledOperations
+    - PK=`canal_id` (String), SK=`scheduled_time` (String), projeção ALL
+    - _Requisitos: 3.2, 12.1_
+  - [ ] 1.3 Criar GSI_Data na tabela ScheduledOperations
+    - PK=`data_execucao` (String), SK=`scheduled_time` (String), projeção ALL
+    - _Requisitos: 3.3, 12.1_
+  - [ ] 1.4 Criar role IAM `EventBridgeSchedulerRole` em `stacks/main_stack.py`
+    - Trust policy para `scheduler.amazonaws.com`
+    - Permissão `lambda:InvokeFunction` na Lambda_Scheduler (referência circular: criar após Lambda_Scheduler)
+    - _Requisitos: 12.5_
+  - [ ] 1.5 Adicionar permissões à role da Lambda_Configuradora
+    - `dynamodb:PutItem`, `dynamodb:GetItem`, `dynamodb:UpdateItem`, `dynamodb:Query` na tabela ScheduledOperations
+    - `scheduler:CreateSchedule`, `scheduler:DeleteSchedule`, `scheduler:GetSchedule`
+    - `iam:PassRole` para a EventBridgeSchedulerRole
+    - _Requisitos: 12.4_
+  - [ ] 1.6 Adicionar variáveis de ambiente à Lambda_Configuradora
+    - `SCHEDULED_OPERATIONS_TABLE`, `SCHEDULER_ROLE_ARN`, `SCHEDULER_TARGET_ARN`
+    - _Requisitos: 12.7_
+
+- [ ] 2. Lambda_Scheduler — Estrutura e Handler Principal
+  - [ ] 2.1 Criar arquivo `lambdas/scheduler/handler.py` com estrutura base
+    - Imports, clientes boto3 (dynamodb, lambda, sns, s3), variáveis de ambiente
+    - Dataclass `ScheduledOperation` conforme definido no design (seção Modelos de Dados)
+    - _Requisitos: 4.1, 12.2_
+  - [ ] 2.2 Implementar `lambda_handler(event, context)` na Lambda_Scheduler
+    - Extrair `schedule_id` do evento, log início da execução
+    - Chamar `_buscar_agendamento()`, verificar status PENDING
+    - Chamar `_executar_operacao_com_retry()`, atualizar status no DynamoDB
+    - Chamar `_publicar_sns()` e `_registrar_auditoria_s3()` (não bloqueantes)
+    - _Requisitos: 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 14.3_
+  - [ ] 2.3 Implementar `_buscar_agendamento(schedule_id)` na Lambda_Scheduler
+    - GetItem no DynamoDB, retornar None se não encontrado
+    - _Requisitos: 4.2, 4.7_
+  - [ ] 2.4 Implementar `_executar_operacao_com_retry(params)` com backoff exponencial
+    - Até 3 tentativas com delays [2, 4, 8] segundos
+    - Capturar erros transitórios (ClientError, TimeoutError)
+    - Lançar exceção após 3 falhas
+    - _Requisitos: 14.1, 14.2_
+  - [ ] 2.5 Implementar `_invocar_configuradora(params)` na Lambda_Scheduler
+    - Invoke síncrono da Lambda_Configuradora com os parâmetros da operação
+    - Parsear resposta e retornar resultado
+    - _Requisitos: 4.3_
+  - [ ] 2.6 Implementar `_atualizar_status_dynamodb(schedule_id, status, resultado)` na Lambda_Scheduler
+    - UpdateItem com status, executado_em e resultado
+    - Log CRITICAL se falhar após execução bem-sucedida
+    - _Requisitos: 4.4, 4.5, 14.5_
+
+- [ ] 3. Lambda_Scheduler — SNS e Auditoria S3
+  - [ ] 3.1 Implementar `_publicar_sns(agendamento, resultado)` na Lambda_Scheduler
+    - Formatar Subject: `[AGENDAMENTO] Canal {canal_id} - {operacao} executada com {sucesso|falha}`
+    - Formatar body JSON com todos os campos obrigatórios (Unicode com ensure_ascii=False)
+    - Verificar SNS_TOPIC_ARN antes de publicar (ignorar se ausente)
+    - Capturar exceções e registrar no log sem propagar
+    - _Requisitos: 5.1, 5.2, 5.3, 5.4, 5.5_
+  - [ ] 3.2 Implementar `_registrar_auditoria_s3(agendamento, resultado)` na Lambda_Scheduler
+    - Chave S3: `audit/YYYY/MM/DD/{YYYYMMDDTHHMMSSz}-{schedule_id}.json`
+    - Campos: estrutura padrão + `agendado_por`, `schedule_id`, `tipo_execucao="agendado"`
+    - Capturar exceções e registrar no log sem propagar
+    - _Requisitos: 4.9, 8.1, 8.2, 8.3, 8.4, 8.5_
+  - [ ] 3.3 Criar Lambda_Scheduler no CDK (`stacks/main_stack.py`)
+    - Runtime Python 3.12, timeout 300s, memória 256 MB
+    - Handler `lambdas/scheduler/handler.lambda_handler`
+    - Variáveis de ambiente: `SCHEDULED_OPERATIONS_TABLE`, `SNS_TOPIC_ARN`, `S3_AUDIT_BUCKET`, `CONFIGURADORA_FUNCTION_NAME`
+    - Permissões: DynamoDB GetItem/UpdateItem, Lambda InvokeFunction, SNS Publish, S3 PutObject
+    - Output CloudFormation "SchedulerLambdaArn"
+    - _Requisitos: 4.1, 12.2, 12.3, 12.6, 12.8_
+
+- [ ] 4. Checkpoint — Testes da Lambda_Scheduler
+  - Garantir que todos os testes da Lambda_Scheduler passam antes de prosseguir.
+
+- [ ] 5. Lambda_Configuradora — Função `_criar_agendamento`
+  - [ ] 5.1 Implementar validações em `_criar_agendamento(params)` em `lambdas/configuradora/handler.py`
+    - Validar parâmetros obrigatórios ausentes (retornar 400 com lista)
+    - Validar `operacao` in `{"start", "stop", "deletar"}` (retornar 400)
+    - Validar `scheduled_time` > now + 1min UTC (retornar 400 com horário BRT)
+    - Validar `confirmacao_destrutiva=true` se `operacao=deletar` (retornar 400)
+    - _Requisitos: 2.1, 2.2, 2.7, 9.1, 9.2, 9.3, 9.4_
+  - [ ] 5.2 Implementar persistência e criação do EventBridge schedule em `_criar_agendamento`
+    - Gerar `schedule_id = str(uuid.uuid4())`
+    - Calcular `data_execucao`, `ttl_expiracao` (90 dias)
+    - PutItem no DynamoDB com todos os atributos (status=PENDING)
+    - CreateSchedule no EventBridge Scheduler (one-time, target=Lambda_Scheduler)
+    - Em caso de falha no EventBridge: UpdateItem(status=FAILED) + retornar 500
+    - _Requisitos: 2.3, 2.4, 2.5_
+  - [ ] 5.3 Implementar resposta de sucesso em `_criar_agendamento`
+    - Retornar HTTP 201 com `schedule_id`, `status`, `scheduled_time_utc`, `scheduled_time_brt`
+    - Converter `scheduled_time` UTC para BRT (UTC-3) para exibição
+    - _Requisitos: 2.6_
+  - [ ] 5.4 Adicionar bloco `/agendarOperacao` no `handler()` da Lambda_Configuradora
+    - Extrair parâmetros via `_parse_parameters()` existente
+    - Chamar `_criar_agendamento(params)`
+    - Retornar resposta no formato Bedrock Action Group com `_bedrock_response()`
+    - _Requisitos: 2.1_
+
+- [ ] 6. Lambda_Configuradora — Funções `_listar_agendamentos` e `_cancelar_agendamento`
+  - [ ] 6.1 Implementar `_listar_agendamentos(filtros)` em `lambdas/configuradora/handler.py`
+    - Se `canal_id` fornecido: Query GSI_Canal
+    - Se `data_execucao` fornecido: Query GSI_Data
+    - Caso contrário: Query com FilterExpression status=PENDING
+    - Ordenar por `scheduled_time` crescente, limitar a 50 itens
+    - Incluir `total_encontrado` quando houver mais de 50 resultados
+    - Converter `scheduled_time` e `criado_em` para BRT nos campos `_brt`
+    - _Requisitos: 6.2, 6.3, 6.4, 6.5, 6.6, 6.7_
+  - [ ] 6.2 Implementar `_cancelar_agendamento(schedule_id)` em `lambdas/configuradora/handler.py`
+    - GetItem no DynamoDB (retornar 404 se não encontrado)
+    - Verificar status == PENDING (retornar 409 se diferente)
+    - DeleteSchedule no EventBridge Scheduler (retornar 500 se falhar, NÃO atualizar DynamoDB)
+    - UpdateItem(status=CANCELLED, cancelado_em=now_utc)
+    - Retornar HTTP 200 com `schedule_id`, `status=CANCELLED`, `cancelado_em`
+    - _Requisitos: 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8_
+  - [ ] 6.3 Adicionar blocos `listarAgendamentos` e `cancelarAgendamento` no `handler()` da Lambda_Configuradora
+    - Dentro do bloco `/gerenciarRecurso`, adicionar condicionais para as novas ações
+    - _Requisitos: 6.1, 7.1_
+
+- [ ] 7. Testes Property-Based — Lambda_Configuradora
+  - [ ] 7.1 Criar `tests/test_property_scheduled_operations.py` com Hypothesis
+    - **Propriedade 1**: Validação de horário no passado — gerar timestamps aleatórios passados e futuros
+      - `# Feature: scheduled-operations, Property 1: Validação de horário no passado`
+      - _Requisitos: 2.2, 9.1, 9.4_
+    - **Propriedade 2**: Validação de operação inválida — gerar strings aleatórias de operação
+      - `# Feature: scheduled-operations, Property 2: Validação de operação inválida`
+      - _Requisitos: 9.3_
+    - **Propriedade 3**: Validação de parâmetros ausentes — gerar subconjuntos aleatórios
+      - `# Feature: scheduled-operations, Property 3: Validação de parâmetros obrigatórios ausentes`
+      - _Requisitos: 2.7_
+    - **Propriedade 4**: Confirmação obrigatória para deletar
+      - `# Feature: scheduled-operations, Property 4: Confirmação obrigatória para operação destrutiva`
+      - _Requisitos: 9.2_
+    - **Propriedade 5**: Resposta de criação contém campos obrigatórios
+      - `# Feature: scheduled-operations, Property 5: Resposta de criação contém campos obrigatórios`
+      - _Requisitos: 2.3, 2.6_
+  - [ ] 7.2 Adicionar propriedades de listagem e cancelamento em `tests/test_property_scheduled_operations.py`
+    - **Propriedade 6**: Listagem padrão retorna apenas PENDING ordenado
+      - `# Feature: scheduled-operations, Property 6: Listagem padrão retorna apenas PENDING ordenado`
+      - _Requisitos: 6.3_
+    - **Propriedade 7**: Listagem respeita limite de 50 itens
+      - `# Feature: scheduled-operations, Property 7: Listagem respeita limite de 50 itens`
+      - _Requisitos: 6.7_
+    - **Propriedade 8**: Resposta de listagem contém campos obrigatórios
+      - `# Feature: scheduled-operations, Property 8: Resposta de listagem contém campos obrigatórios`
+      - _Requisitos: 6.6_
+    - **Propriedade 9**: Cancelamento retorna campos obrigatórios
+      - `# Feature: scheduled-operations, Property 9: Cancelamento retorna campos obrigatórios`
+      - _Requisitos: 7.8_
+
+- [ ] 8. Testes Property-Based — Lambda_Scheduler e Serialização
+  - [ ] 8.1 Criar `tests/test_property_scheduler_handler.py` com Hypothesis
+    - **Propriedade 10**: Formato do Subject SNS
+      - `# Feature: scheduled-operations, Property 10: Formato do Subject SNS`
+      - _Requisitos: 5.2_
+    - **Propriedade 11**: Corpo SNS contém campos obrigatórios
+      - `# Feature: scheduled-operations, Property 11: Corpo SNS contém campos obrigatórios`
+      - _Requisitos: 5.3_
+    - **Propriedade 12**: Formato da chave S3 de auditoria
+      - `# Feature: scheduled-operations, Property 12: Formato da chave S3 de auditoria`
+      - _Requisitos: 8.2_
+    - **Propriedade 13**: Retry com backoff exponencial
+      - `# Feature: scheduled-operations, Property 13: Retry com backoff exponencial`
+      - _Requisitos: 14.1_
+  - [ ] 8.2 Criar `tests/test_property_serialization.py` com Hypothesis
+    - **Propriedade 14**: Round-trip de serialização de agendamentos
+      - `# Feature: scheduled-operations, Property 14: Round-trip de serialização de agendamentos`
+      - _Requisitos: 15.1_
+    - **Propriedade 15**: Serialização ISO 8601 com sufixo Z
+      - `# Feature: scheduled-operations, Property 15: Serialização ISO 8601 com sufixo Z`
+      - _Requisitos: 15.2_
+    - **Propriedade 16**: Round-trip de parametros_adicionais
+      - `# Feature: scheduled-operations, Property 16: Round-trip de parametros_adicionais`
+      - _Requisitos: 15.3_
+    - **Propriedade 17**: Round-trip de payloads SNS com Unicode
+      - `# Feature: scheduled-operations, Property 17: Round-trip de payloads SNS com Unicode`
+      - _Requisitos: 15.6_
+
+- [ ] 9. Testes Unitários
+  - [ ] 9.1 Criar `tests/test_unit_scheduled_operations.py` com testes unitários da Lambda_Configuradora
+    - Criação com sucesso (mock DynamoDB + EventBridge)
+    - Falha no EventBridge após DynamoDB — verificar status FAILED
+    - Listagem sem filtros — apenas PENDING ordenado
+    - Listagem com filtro `canal_id` — uso do GSI_Canal
+    - Listagem com filtro `data_execucao` — uso do GSI_Data
+    - Listagem com mais de 50 resultados — limite e `total_encontrado`
+    - Cancelamento com sucesso
+    - Cancelamento de agendamento não encontrado — HTTP 404
+    - Cancelamento de agendamento não-PENDING — HTTP 409
+    - Cancelamento com falha no EventBridge — HTTP 500, DynamoDB não atualizado
+    - _Requisitos: 2.1–2.7, 6.1–6.7, 7.1–7.8_
+  - [ ] 9.2 Criar `tests/test_unit_scheduler_handler.py` com testes unitários da Lambda_Scheduler
+    - Execução com sucesso — EXECUTED no DynamoDB, SNS e S3_Audit chamados
+    - Execução com falha na Configuradora — FAILED no DynamoDB
+    - Agendamento com status CANCELLED — nenhuma operação executada
+    - Agendamento não encontrado — encerramento sem operação
+    - Retry com 1 falha transitória — 2 chamadas à Configuradora
+    - Retry com 3 falhas — FAILED e SNS de falha
+    - Falha no SNS — DynamoDB atualizado mesmo assim
+    - Falha no S3_Audit — DynamoDB atualizado mesmo assim
+    - SNS_TOPIC_ARN ausente — SNS não chamado
+    - _Requisitos: 4.2–4.9, 5.1–5.5, 8.1–8.5, 14.1–14.5_
+
+- [ ] 10. Checkpoint — Garantir que todos os testes passam
+  - Garantir que todos os testes passam antes de prosseguir para as integrações.
+
+- [ ] 11. Atualização do Schema OpenAPI
+  - [ ] 11.1 Adicionar path `/agendarOperacao` ao schema OpenAPI do Action_Group_Config
+    - Método POST com todos os parâmetros documentados (canal_id, servico, tipo_recurso, operacao, scheduled_time, usuario_id, parametros_adicionais, confirmacao_destrutiva)
+    - Documentar resposta com campos schedule_id, status, scheduled_time_utc, scheduled_time_brt
+    - Verificar que o total de paths não ultrapassa 9
+    - _Requisitos: 10.1, 10.4, 10.5_
+  - [ ] 11.2 Adicionar `listarAgendamentos` e `cancelarAgendamento` ao enum `acao` do path `/gerenciarRecurso`
+    - Documentar filtros opcionais para `listarAgendamentos` (canal_id, servico, status, data_execucao)
+    - Documentar parâmetro obrigatório `schedule_id` para `cancelarAgendamento`
+    - _Requisitos: 10.2, 10.3_
+
+- [ ] 12. Atualização do Prompt do Agente_Bedrock
+  - [ ] 12.1 Adicionar rota de criação de agendamento ao prompt em `Help/agente-bedrock-prompt-v2.md`
+    - Palavras-chave: "agendar", "programar", "às HH:MM", "amanhã", "na sexta", "no dia DD/MM", "para segunda", "para amanhã"
+    - Instrução de extração de parâmetros (canal, operação, horário BRT)
+    - Instrução de conversão BRT → UTC antes de invocar `/agendarOperacao`
+    - Instrução de confirmação para operações destrutivas (exibir canal, tipo_recurso, horário BRT)
+    - Instrução de exibir horário em BRT na confirmação de sucesso
+    - _Requisitos: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 11.1, 11.2, 11.3, 11.4, 11.7_
+  - [ ] 12.2 Adicionar rotas de listagem e cancelamento ao prompt
+    - Palavras-chave listagem: "listar agendamentos", "o que está agendado", "quais agendamentos", "agendamentos pendentes", "próximas operações agendadas"
+    - Palavras-chave cancelamento: "cancelar agendamento", "desagendar", "remover agendamento", "cancelar schedule"
+    - _Requisitos: 11.5, 11.6_
+
+- [ ] 13. Atualização do Frontend_Chat
+  - [ ] 13.1 Adicionar seção "⏰ Agendamentos" na sidebar do `frontend/chat.html`
+    - Posicionar após a seção de start/stop e antes das seções de criação/modificação
+    - Botões: "Agendar parada de canal para amanhã", "Agendar início de canal para sexta", "Listar agendamentos pendentes", "Cancelar agendamento"
+    - Seguir o mesmo padrão HTML/CSS dos botões de sugestão existentes
+    - _Requisitos: 13.1, 13.2, 13.3_
+
+- [ ] 14. Checkpoint Final — Validação Completa
+  - Garantir que todos os testes passam.
+  - Verificar que o CDK sintetiza sem erros (`cdk synth`).
+  - Verificar que o schema OpenAPI é válido e tem no máximo 9 paths.
+
+## Notas
+
+- Cada tarefa referencia requisitos específicos para rastreabilidade
+- Checkpoints garantem validação incremental antes de avançar
+- Testes property-based validam propriedades universais de corretude com mínimo 100 iterações
+- Testes unitários validam exemplos específicos e casos de borda
+- O projeto já usa Hypothesis para property-based testing (diretório `.hypothesis/` existente)
+- A Lambda_Scheduler usa `MaximumRetryAttempts=0` no EventBridge Scheduler — o retry é gerenciado internamente
+- Falhas de SNS e S3_Audit são não-bloqueantes: registradas no log mas não revertem o status no DynamoDB

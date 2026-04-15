@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\frontend_stack.py
+# hypothesis_version: 6.141.1
+
+[200, 403, 404, '/index.html', 'FrontendDistribution', 'index.html']

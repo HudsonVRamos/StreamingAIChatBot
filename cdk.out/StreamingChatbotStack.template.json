@@ -1,0 +1,3017 @@
+{
+ "Resources": {
+  "KBConfigBucketFCBD41B2": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/KBConfigBucket/Resource"
+   }
+  },
+  "KBConfigBucketPolicy8E2F5C7D": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "KBConfigBucketFCBD41B2"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:PutBucketPolicy",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "KBConfigBucketFCBD41B2",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "KBConfigBucketFCBD41B2",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/KBConfigBucket/Policy/Resource"
+   }
+  },
+  "KBConfigBucketAutoDeleteObjectsCustomResource7989B283": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "KBConfigBucketFCBD41B2"
+    }
+   },
+   "DependsOn": [
+    "KBConfigBucketPolicy8E2F5C7D"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/KBConfigBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Version": "2012-10-17",
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ]
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Sub": "arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Role"
+   }
+  },
+  "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6.zip"
+    },
+    "Timeout": 900,
+    "MemorySize": 128,
+    "Handler": "index.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs22.x",
+    "Description": {
+     "Fn::Join": [
+      "",
+      [
+       "Lambda function for auto-deleting objects in ",
+       {
+        "Ref": "KBConfigBucketFCBD41B2"
+       },
+       " S3 bucket."
+      ]
+     ]
+    }
+   },
+   "DependsOn": [
+    "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/Custom::S3AutoDeleteObjectsCustomResourceProvider/Handler",
+    "aws:asset:path": "asset.faa95a81ae7d7373f3e1f242268f904eb748d8d0fdd306e8a6fe515a1905a7d6",
+    "aws:asset:property": "Code"
+   }
+  },
+  "KBLogsBucket3E8A8F80": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "LifecycleConfiguration": {
+     "Rules": [
+      {
+       "ExpirationInDays": 7,
+       "Prefix": "kb-logs/",
+       "Status": "Enabled"
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/KBLogsBucket/Resource"
+   }
+  },
+  "KBLogsBucketPolicy6A921767": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "KBLogsBucket3E8A8F80"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:PutBucketPolicy",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "KBLogsBucket3E8A8F80",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "KBLogsBucket3E8A8F80",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/KBLogsBucket/Policy/Resource"
+   }
+  },
+  "KBLogsBucketAutoDeleteObjectsCustomResourceFEEC91E2": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "KBLogsBucket3E8A8F80"
+    }
+   },
+   "DependsOn": [
+    "KBLogsBucketPolicy6A921767"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/KBLogsBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "AuditBucketB01E0AE8": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "LifecycleConfiguration": {
+     "Rules": [
+      {
+       "ExpirationInDays": 365,
+       "Status": "Enabled"
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ],
+    "VersioningConfiguration": {
+     "Status": "Enabled"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/AuditBucket/Resource"
+   }
+  },
+  "AuditBucketPolicy9F807F4B": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "AuditBucketB01E0AE8"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:PutBucketPolicy",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "AuditBucketB01E0AE8",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "AuditBucketB01E0AE8",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/AuditBucket/Policy/Resource"
+   }
+  },
+  "AuditBucketAutoDeleteObjectsCustomResource90C6E1EF": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "AuditBucketB01E0AE8"
+    }
+   },
+   "DependsOn": [
+    "AuditBucketPolicy9F807F4B"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/AuditBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "ExportsBucket5A12738B": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "BucketEncryption": {
+     "ServerSideEncryptionConfiguration": [
+      {
+       "ServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+       }
+      }
+     ]
+    },
+    "LifecycleConfiguration": {
+     "Rules": [
+      {
+       "ExpirationInDays": 1,
+       "Prefix": "exports/",
+       "Status": "Enabled"
+      }
+     ]
+    },
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ExportsBucket/Resource"
+   }
+  },
+  "ExportsBucketPolicyF65C412E": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "ExportsBucket5A12738B"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:PutBucketPolicy",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "ExportsBucket5A12738B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "ExportsBucket5A12738B",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ExportsBucket/Policy/Resource"
+   }
+  },
+  "ExportsBucketAutoDeleteObjectsCustomResource12EF524C": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "ExportsBucket5A12738B"
+    }
+   },
+   "DependsOn": [
+    "ExportsBucketPolicyF65C412E"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ExportsBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "FrontendBucketEFE2E19C": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "PublicAccessBlockConfiguration": {
+     "BlockPublicAcls": true,
+     "BlockPublicPolicy": true,
+     "IgnorePublicAcls": true,
+     "RestrictPublicBuckets": true
+    },
+    "Tags": [
+     {
+      "Key": "aws-cdk:auto-delete-objects",
+      "Value": "true"
+     }
+    ],
+    "WebsiteConfiguration": {
+     "ErrorDocument": "index.html",
+     "IndexDocument": "index.html"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/FrontendBucket/Resource"
+   }
+  },
+  "FrontendBucketPolicy1DFF75D9": {
+   "Type": "AWS::S3::BucketPolicy",
+   "Properties": {
+    "Bucket": {
+     "Ref": "FrontendBucketEFE2E19C"
+    },
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:PutBucketPolicy",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*"
+       ],
+       "Effect": "Allow",
+       "Principal": {
+        "AWS": {
+         "Fn::GetAtt": [
+          "CustomS3AutoDeleteObjectsCustomResourceProviderRole3B1BD092",
+          "Arn"
+         ]
+        }
+       },
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "FrontendBucketEFE2E19C",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "FrontendBucketEFE2E19C",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "s3:GetObject",
+       "Condition": {
+        "StringEquals": {
+         "AWS:SourceArn": {
+          "Fn::Join": [
+           "",
+           [
+            "arn:",
+            {
+             "Ref": "AWS::Partition"
+            },
+            ":cloudfront::",
+            {
+             "Ref": "AWS::AccountId"
+            },
+            ":distribution/",
+            {
+             "Ref": "FrontendDistributionE6EAF405"
+            }
+           ]
+          ]
+         }
+        }
+       },
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "cloudfront.amazonaws.com"
+       },
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "FrontendBucketEFE2E19C",
+            "Arn"
+           ]
+          },
+          "/*"
+         ]
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/FrontendBucket/Policy/Resource"
+   }
+  },
+  "FrontendBucketAutoDeleteObjectsCustomResourceDB860B32": {
+   "Type": "Custom::S3AutoDeleteObjects",
+   "Properties": {
+    "ServiceToken": {
+     "Fn::GetAtt": [
+      "CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F",
+      "Arn"
+     ]
+    },
+    "BucketName": {
+     "Ref": "FrontendBucketEFE2E19C"
+    }
+   },
+   "DependsOn": [
+    "FrontendBucketPolicy1DFF75D9"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/FrontendBucket/AutoDeleteObjectsCustomResource/Default"
+   }
+  },
+  "StreamingConfigs49C3BEE3": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "PK",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "SK",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "servico",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "nome_canal",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "GlobalSecondaryIndexes": [
+     {
+      "IndexName": "GSI_NomeCanal",
+      "KeySchema": [
+       {
+        "AttributeName": "servico",
+        "KeyType": "HASH"
+       },
+       {
+        "AttributeName": "nome_canal",
+        "KeyType": "RANGE"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     }
+    ],
+    "KeySchema": [
+     {
+      "AttributeName": "PK",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "SK",
+      "KeyType": "RANGE"
+     }
+    ],
+    "PointInTimeRecoverySpecification": {
+     "PointInTimeRecoveryEnabled": true
+    },
+    "SSESpecification": {
+     "SSEEnabled": true
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/StreamingConfigs/Resource"
+   }
+  },
+  "StreamingLogsBE97608D": {
+   "Type": "AWS::DynamoDB::Table",
+   "Properties": {
+    "AttributeDefinitions": [
+     {
+      "AttributeName": "PK",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "SK",
+      "AttributeType": "S"
+     },
+     {
+      "AttributeName": "severidade",
+      "AttributeType": "S"
+     }
+    ],
+    "BillingMode": "PAY_PER_REQUEST",
+    "GlobalSecondaryIndexes": [
+     {
+      "IndexName": "GSI_Severidade",
+      "KeySchema": [
+       {
+        "AttributeName": "severidade",
+        "KeyType": "HASH"
+       },
+       {
+        "AttributeName": "SK",
+        "KeyType": "RANGE"
+       }
+      ],
+      "Projection": {
+       "ProjectionType": "ALL"
+      }
+     }
+    ],
+    "KeySchema": [
+     {
+      "AttributeName": "PK",
+      "KeyType": "HASH"
+     },
+     {
+      "AttributeName": "SK",
+      "KeyType": "RANGE"
+     }
+    ],
+    "SSESpecification": {
+     "SSEEnabled": true
+    },
+    "TimeToLiveSpecification": {
+     "AttributeName": "ttl",
+     "Enabled": true
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/StreamingLogs/Resource"
+   }
+  },
+  "ChatUserPool04B192D3": {
+   "Type": "AWS::Cognito::UserPool",
+   "Properties": {
+    "AccountRecoverySetting": {
+     "RecoveryMechanisms": [
+      {
+       "Name": "verified_phone_number",
+       "Priority": 1
+      },
+      {
+       "Name": "verified_email",
+       "Priority": 2
+      }
+     ]
+    },
+    "AdminCreateUserConfig": {
+     "AllowAdminCreateUserOnly": true
+    },
+    "AutoVerifiedAttributes": [
+     "email"
+    ],
+    "EmailVerificationMessage": "The verification code to your new account is {####}",
+    "EmailVerificationSubject": "Verify your new account",
+    "EnabledMfas": [
+     "SOFTWARE_TOKEN_MFA"
+    ],
+    "MfaConfiguration": "ON",
+    "Policies": {
+     "PasswordPolicy": {
+      "MinimumLength": 8,
+      "RequireLowercase": true,
+      "RequireNumbers": true,
+      "RequireSymbols": false,
+      "RequireUppercase": true
+     }
+    },
+    "SmsVerificationMessage": "The verification code to your new account is {####}",
+    "UserPoolName": "StreamingChatbotUsers",
+    "UsernameAttributes": [
+     "email"
+    ],
+    "VerificationMessageTemplate": {
+     "DefaultEmailOption": "CONFIRM_WITH_CODE",
+     "EmailMessage": "The verification code to your new account is {####}",
+     "EmailSubject": "Verify your new account",
+     "SmsMessage": "The verification code to your new account is {####}"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatUserPool/Resource"
+   }
+  },
+  "ChatUserPoolChatWebClient9D4CB65A": {
+   "Type": "AWS::Cognito::UserPoolClient",
+   "Properties": {
+    "AllowedOAuthFlows": [
+     "implicit",
+     "code"
+    ],
+    "AllowedOAuthFlowsUserPoolClient": true,
+    "AllowedOAuthScopes": [
+     "profile",
+     "phone",
+     "email",
+     "openid",
+     "aws.cognito.signin.user.admin"
+    ],
+    "CallbackURLs": [
+     "https://example.com"
+    ],
+    "ClientName": "streaming-chatbot-web",
+    "ExplicitAuthFlows": [
+     "ALLOW_USER_PASSWORD_AUTH",
+     "ALLOW_USER_SRP_AUTH",
+     "ALLOW_REFRESH_TOKEN_AUTH"
+    ],
+    "GenerateSecret": false,
+    "SupportedIdentityProviders": [
+     "COGNITO"
+    ],
+    "UserPoolId": {
+     "Ref": "ChatUserPool04B192D3"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatUserPool/ChatWebClient/Resource"
+   }
+  },
+  "FrontendDistributionOrigin1S3OriginAccessControl51A3EFC6": {
+   "Type": "AWS::CloudFront::OriginAccessControl",
+   "Properties": {
+    "OriginAccessControlConfig": {
+     "Name": "StreamingChatbotStackFrontenOrigin1S3OriginAccessControl0EB4B446",
+     "OriginAccessControlOriginType": "s3",
+     "SigningBehavior": "always",
+     "SigningProtocol": "sigv4"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/FrontendDistribution/Origin1/S3OriginAccessControl/Resource"
+   }
+  },
+  "FrontendDistributionE6EAF405": {
+   "Type": "AWS::CloudFront::Distribution",
+   "Properties": {
+    "DistributionConfig": {
+     "CustomErrorResponses": [
+      {
+       "ErrorCode": 403,
+       "ResponseCode": 200,
+       "ResponsePagePath": "/index.html"
+      },
+      {
+       "ErrorCode": 404,
+       "ResponseCode": 200,
+       "ResponsePagePath": "/index.html"
+      }
+     ],
+     "DefaultCacheBehavior": {
+      "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+      "Compress": true,
+      "TargetOriginId": "StreamingChatbotStackFrontendDistributionOrigin12B648991",
+      "ViewerProtocolPolicy": "redirect-to-https"
+     },
+     "DefaultRootObject": "index.html",
+     "Enabled": true,
+     "HttpVersion": "http2",
+     "IPV6Enabled": true,
+     "Origins": [
+      {
+       "DomainName": {
+        "Fn::GetAtt": [
+         "FrontendBucketEFE2E19C",
+         "RegionalDomainName"
+        ]
+       },
+       "Id": "StreamingChatbotStackFrontendDistributionOrigin12B648991",
+       "OriginAccessControlId": {
+        "Fn::GetAtt": [
+         "FrontendDistributionOrigin1S3OriginAccessControl51A3EFC6",
+         "Id"
+        ]
+       },
+       "S3OriginConfig": {
+        "OriginAccessIdentity": ""
+       }
+      }
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/FrontendDistribution/Resource"
+   }
+  },
+  "OrquestradoraFunctionServiceRole75D7971E": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/OrquestradoraFunction/ServiceRole/Resource"
+   }
+  },
+  "OrquestradoraFunctionServiceRoleDefaultPolicyF98B569D": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "bedrock:*",
+        "bedrock-agent-runtime:*",
+        "bedrock-agent:*"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": "lambda:InvokeFunction",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "ConfiguradoraFunction8C3D6318",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "ConfiguradoraFunction8C3D6318",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "lambda:InvokeFunction",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "ExportadoraFunctionF7DCB910",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "ExportadoraFunctionF7DCB910",
+             "Arn"
+            ]
+           },
+           ":*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "OrquestradoraFunctionServiceRoleDefaultPolicyF98B569D",
+    "Roles": [
+     {
+      "Ref": "OrquestradoraFunctionServiceRole75D7971E"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/OrquestradoraFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "OrquestradoraFunctionC93F4B46": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "9b583f3380bffad7c46c27f9c3b881f3b2652af9199ad4e950f0ade64d4762cc.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "AGENT_ID": "AM81CBRWNE",
+      "AGENT_ALIAS_ID": "TSTALIASID",
+      "CONFIG_FUNCTION_NAME": {
+       "Ref": "ConfiguradoraFunction8C3D6318"
+      },
+      "EXPORT_FUNCTION_NAME": {
+       "Ref": "ExportadoraFunctionF7DCB910"
+      }
+     }
+    },
+    "Handler": "handler.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "OrquestradoraFunctionServiceRole75D7971E",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "OrquestradoraFunctionServiceRoleDefaultPolicyF98B569D",
+    "OrquestradoraFunctionServiceRole75D7971E"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/OrquestradoraFunction/Resource",
+    "aws:asset:path": "asset.9b583f3380bffad7c46c27f9c3b881f3b2652af9199ad4e950f0ade64d4762cc",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "OrquestradoraFunctionFunctionUrl54F4956A": {
+   "Type": "AWS::Lambda::Url",
+   "Properties": {
+    "AuthType": "NONE",
+    "Cors": {
+     "AllowHeaders": [
+      "Content-Type"
+     ],
+     "AllowMethods": [
+      "POST"
+     ],
+     "AllowOrigins": [
+      "*"
+     ]
+    },
+    "TargetFunctionArn": {
+     "Fn::GetAtt": [
+      "OrquestradoraFunctionC93F4B46",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/OrquestradoraFunction/FunctionUrl/Resource"
+   }
+  },
+  "OrquestradoraFunctioninvokefunctionurl700F6013": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunctionUrl",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "OrquestradoraFunctionC93F4B46",
+      "Arn"
+     ]
+    },
+    "FunctionUrlAuthType": "NONE",
+    "Principal": "*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/OrquestradoraFunction/invoke-function-url"
+   }
+  },
+  "OrquestradoraFunctioninvokefunction6DE05EA5": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "OrquestradoraFunctionC93F4B46",
+      "Arn"
+     ]
+    },
+    "InvokedViaFunctionUrl": true,
+    "Principal": "*"
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/OrquestradoraFunction/invoke-function"
+   }
+  },
+  "ChatApiD29796E1": {
+   "Type": "AWS::ApiGateway::RestApi",
+   "Properties": {
+    "Description": "REST API for the Streaming Chatbot",
+    "Name": "StreamingChatbotApi"
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Resource"
+   }
+  },
+  "ChatApiCloudWatchRole9963F83E": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "apigateway.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+       ]
+      ]
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/CloudWatchRole/Resource"
+   }
+  },
+  "ChatApiAccount35628D82": {
+   "Type": "AWS::ApiGateway::Account",
+   "Properties": {
+    "CloudWatchRoleArn": {
+     "Fn::GetAtt": [
+      "ChatApiCloudWatchRole9963F83E",
+      "Arn"
+     ]
+    }
+   },
+   "DependsOn": [
+    "ChatApiD29796E1"
+   ],
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Account"
+   }
+  },
+  "ChatApiDeploymentE71C0DD24c5f67f6c7ae9bc738e08b19b2f6748c": {
+   "Type": "AWS::ApiGateway::Deployment",
+   "Properties": {
+    "Description": "REST API for the Streaming Chatbot",
+    "RestApiId": {
+     "Ref": "ChatApiD29796E1"
+    }
+   },
+   "DependsOn": [
+    "ChatApichatOPTIONSAD702F28",
+    "ChatApichatPOST13AF4106",
+    "ChatApichatFDA23F51",
+    "ChatApiOPTIONS49C3739C"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Deployment/Resource",
+    "aws:cdk:do-not-refactor": true
+   }
+  },
+  "ChatApiDeploymentStageprodE9C01931": {
+   "Type": "AWS::ApiGateway::Stage",
+   "Properties": {
+    "DeploymentId": {
+     "Ref": "ChatApiDeploymentE71C0DD24c5f67f6c7ae9bc738e08b19b2f6748c"
+    },
+    "RestApiId": {
+     "Ref": "ChatApiD29796E1"
+    },
+    "StageName": "prod"
+   },
+   "DependsOn": [
+    "ChatApiAccount35628D82"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/DeploymentStage.prod/Resource"
+   }
+  },
+  "ChatApiOPTIONS49C3739C": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'",
+        "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'"
+       },
+       "StatusCode": "204"
+      }
+     ],
+     "RequestTemplates": {
+      "application/json": "{ statusCode: 200 }"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Origin": true,
+       "method.response.header.Access-Control-Allow-Methods": true
+      },
+      "StatusCode": "204"
+     }
+    ],
+    "ResourceId": {
+     "Fn::GetAtt": [
+      "ChatApiD29796E1",
+      "RootResourceId"
+     ]
+    },
+    "RestApiId": {
+     "Ref": "ChatApiD29796E1"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Default/OPTIONS/Resource"
+   }
+  },
+  "ChatApichatFDA23F51": {
+   "Type": "AWS::ApiGateway::Resource",
+   "Properties": {
+    "ParentId": {
+     "Fn::GetAtt": [
+      "ChatApiD29796E1",
+      "RootResourceId"
+     ]
+    },
+    "PathPart": "chat",
+    "RestApiId": {
+     "Ref": "ChatApiD29796E1"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Default/chat/Resource"
+   }
+  },
+  "ChatApichatOPTIONSAD702F28": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "HttpMethod": "OPTIONS",
+    "Integration": {
+     "IntegrationResponses": [
+      {
+       "ResponseParameters": {
+        "method.response.header.Access-Control-Allow-Headers": "'Content-Type'",
+        "method.response.header.Access-Control-Allow-Origin": "'*'",
+        "method.response.header.Access-Control-Allow-Methods": "'POST,OPTIONS'"
+       },
+       "StatusCode": "204"
+      }
+     ],
+     "RequestTemplates": {
+      "application/json": "{ statusCode: 200 }"
+     },
+     "Type": "MOCK"
+    },
+    "MethodResponses": [
+     {
+      "ResponseParameters": {
+       "method.response.header.Access-Control-Allow-Headers": true,
+       "method.response.header.Access-Control-Allow-Origin": true,
+       "method.response.header.Access-Control-Allow-Methods": true
+      },
+      "StatusCode": "204"
+     }
+    ],
+    "ResourceId": {
+     "Ref": "ChatApichatFDA23F51"
+    },
+    "RestApiId": {
+     "Ref": "ChatApiD29796E1"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Default/chat/OPTIONS/Resource"
+   }
+  },
+  "ChatApichatPOSTApiPermissionStreamingChatbotStackChatApi53E5E243POSTchat2A43695A": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "OrquestradoraFunctionC93F4B46",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": {
+     "Fn::Join": [
+      "",
+      [
+       "arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":execute-api:us-east-1:",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":",
+       {
+        "Ref": "ChatApiD29796E1"
+       },
+       "/",
+       {
+        "Ref": "ChatApiDeploymentStageprodE9C01931"
+       },
+       "/POST/chat"
+      ]
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Default/chat/POST/ApiPermission.StreamingChatbotStackChatApi53E5E243.POST..chat"
+   }
+  },
+  "ChatApichatPOSTApiPermissionTestStreamingChatbotStackChatApi53E5E243POSTchatC9B61587": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "OrquestradoraFunctionC93F4B46",
+      "Arn"
+     ]
+    },
+    "Principal": "apigateway.amazonaws.com",
+    "SourceArn": {
+     "Fn::Join": [
+      "",
+      [
+       "arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":execute-api:us-east-1:",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":",
+       {
+        "Ref": "ChatApiD29796E1"
+       },
+       "/test-invoke-stage/POST/chat"
+      ]
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Default/chat/POST/ApiPermission.Test.StreamingChatbotStackChatApi53E5E243.POST..chat"
+   }
+  },
+  "ChatApichatPOST13AF4106": {
+   "Type": "AWS::ApiGateway::Method",
+   "Properties": {
+    "AuthorizationType": "NONE",
+    "HttpMethod": "POST",
+    "Integration": {
+     "IntegrationHttpMethod": "POST",
+     "TimeoutInMillis": 29000,
+     "Type": "AWS_PROXY",
+     "Uri": {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":apigateway:us-east-1:lambda:path/2015-03-31/functions/",
+        {
+         "Fn::GetAtt": [
+          "OrquestradoraFunctionC93F4B46",
+          "Arn"
+         ]
+        },
+        "/invocations"
+       ]
+      ]
+     }
+    },
+    "ResourceId": {
+     "Ref": "ChatApichatFDA23F51"
+    },
+    "RestApiId": {
+     "Ref": "ChatApiD29796E1"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ChatApi/Default/chat/POST/Resource"
+   }
+  },
+  "ConfiguradoraFunctionServiceRole8376C593": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ConfiguradoraFunction/ServiceRole/Resource"
+   }
+  },
+  "ConfiguradoraFunctionServiceRoleDefaultPolicy5BA7FAE7": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "medialive:*",
+        "mediapackage:*",
+        "mediapackagev2:*",
+        "mediatailor:*",
+        "cloudfront:*"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": [
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": [
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "AuditBucketB01E0AE8",
+            "Arn"
+           ]
+          },
+          "/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "AuditBucketB01E0AE8",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "AuditBucketB01E0AE8",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "ExportsBucket5A12738B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "ExportsBucket5A12738B",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "dynamodb:BatchGetItem",
+        "dynamodb:Query",
+        "dynamodb:GetItem",
+        "dynamodb:Scan",
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:DescribeTable"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingConfigs49C3BEE3",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingConfigs49C3BEE3",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "dynamodb:GetRecords",
+        "dynamodb:GetShardIterator"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingConfigs49C3BEE3",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingConfigs49C3BEE3",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ConfiguradoraFunctionServiceRoleDefaultPolicy5BA7FAE7",
+    "Roles": [
+     {
+      "Ref": "ConfiguradoraFunctionServiceRole8376C593"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ConfiguradoraFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ConfiguradoraFunction8C3D6318": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "38362a66db279f9cd5cde7503a430b31b041429933530b144761e3f570e72316.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "AUDIT_BUCKET": {
+       "Ref": "AuditBucketB01E0AE8"
+      },
+      "AUDIT_PREFIX": "audit/",
+      "STREAMING_REGION": "sa-east-1",
+      "EXPORTS_BUCKET": {
+       "Ref": "ExportsBucket5A12738B"
+      },
+      "EXPORTS_PREFIX": "exports/",
+      "PRESIGNED_URL_EXPIRY": "3600",
+      "SPEKE_ROLE_ARN": "arn:aws:iam::761018874615:role/APIInvokeMediaPackageV2",
+      "SPEKE_URL": "https://wgz3208af4.execute-api.sa-east-1.amazonaws.com/PROD_V2/NOKR",
+      "CONFIGS_TABLE_NAME": {
+       "Ref": "StreamingConfigs49C3BEE3"
+      }
+     }
+    },
+    "Handler": "handler.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "ConfiguradoraFunctionServiceRole8376C593",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "ConfiguradoraFunctionServiceRoleDefaultPolicy5BA7FAE7",
+    "ConfiguradoraFunctionServiceRole8376C593"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ConfiguradoraFunction/Resource",
+    "aws:asset:path": "asset.38362a66db279f9cd5cde7503a430b31b041429933530b144761e3f570e72316",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ExportadoraFunctionServiceRoleBBF4035C": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ExportadoraFunction/ServiceRole/Resource"
+   }
+  },
+  "ExportadoraFunctionServiceRoleDefaultPolicy3168E4AF": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "KBConfigBucketFCBD41B2",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "KBConfigBucketFCBD41B2",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "KBLogsBucket3E8A8F80",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "KBLogsBucket3E8A8F80",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*",
+        "s3:DeleteObject*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "ExportsBucket5A12738B",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "ExportsBucket5A12738B",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "dynamodb:BatchGetItem",
+        "dynamodb:Query",
+        "dynamodb:GetItem",
+        "dynamodb:Scan",
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:DescribeTable"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingConfigs49C3BEE3",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingConfigs49C3BEE3",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "dynamodb:GetRecords",
+        "dynamodb:GetShardIterator"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingConfigs49C3BEE3",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingConfigs49C3BEE3",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "dynamodb:BatchGetItem",
+        "dynamodb:Query",
+        "dynamodb:GetItem",
+        "dynamodb:Scan",
+        "dynamodb:ConditionCheckItem",
+        "dynamodb:DescribeTable"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingLogsBE97608D",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingLogsBE97608D",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "dynamodb:GetRecords",
+        "dynamodb:GetShardIterator"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingLogsBE97608D",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingLogsBE97608D",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ExportadoraFunctionServiceRoleDefaultPolicy3168E4AF",
+    "Roles": [
+     {
+      "Ref": "ExportadoraFunctionServiceRoleBBF4035C"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ExportadoraFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ExportadoraFunctionF7DCB910": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "71ec776b1cb80cd362400ed4aeaf983a0e0a5e53ca9d31e97752dd7bc731deab.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "KB_CONFIG_BUCKET": {
+       "Ref": "KBConfigBucketFCBD41B2"
+      },
+      "KB_CONFIG_PREFIX": "kb-config/",
+      "KB_LOGS_BUCKET": {
+       "Ref": "KBLogsBucket3E8A8F80"
+      },
+      "KB_LOGS_PREFIX": "kb-logs/",
+      "KB_ADS_BUCKET": {
+       "Ref": "KBConfigBucketFCBD41B2"
+      },
+      "KB_ADS_PREFIX": "kb-ads/",
+      "EXPORTS_BUCKET": {
+       "Ref": "ExportsBucket5A12738B"
+      },
+      "EXPORTS_PREFIX": "exports/",
+      "PRESIGNED_URL_EXPIRY": "3600",
+      "CONFIGS_TABLE_NAME": {
+       "Ref": "StreamingConfigs49C3BEE3"
+      },
+      "LOGS_TABLE_NAME": {
+       "Ref": "StreamingLogsBE97608D"
+      }
+     }
+    },
+    "Handler": "handler.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "ExportadoraFunctionServiceRoleBBF4035C",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 120
+   },
+   "DependsOn": [
+    "ExportadoraFunctionServiceRoleDefaultPolicy3168E4AF",
+    "ExportadoraFunctionServiceRoleBBF4035C"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/ExportadoraFunction/Resource",
+    "aws:asset:path": "asset.71ec776b1cb80cd362400ed4aeaf983a0e0a5e53ca9d31e97752dd7bc731deab",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "PipelineConfigFunctionServiceRoleEBF3BCEC": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineConfigFunction/ServiceRole/Resource"
+   }
+  },
+  "PipelineConfigFunctionServiceRoleDefaultPolicy98DE9A92": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "medialive:*",
+        "mediapackage:*",
+        "mediapackagev2:*",
+        "mediatailor:*",
+        "cloudfront:*"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": [
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "KBConfigBucketFCBD41B2",
+            "Arn"
+           ]
+          },
+          "/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "dynamodb:BatchWriteItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingConfigs49C3BEE3",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingConfigs49C3BEE3",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "PipelineConfigFunctionServiceRoleDefaultPolicy98DE9A92",
+    "Roles": [
+     {
+      "Ref": "PipelineConfigFunctionServiceRoleEBF3BCEC"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineConfigFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "PipelineConfigFunction079AFC45": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "f2663ba31f3efe37005e138ef4e83286d1fae8b990e4d39526e5d63315e71e62.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "KB_CONFIG_BUCKET": {
+       "Ref": "KBConfigBucketFCBD41B2"
+      },
+      "KB_CONFIG_PREFIX": "kb-config/",
+      "STREAMING_REGION": "sa-east-1",
+      "MEDIATAILOR_REGION": "us-east-1",
+      "CONFIGS_TABLE_NAME": {
+       "Ref": "StreamingConfigs49C3BEE3"
+      }
+     }
+    },
+    "Handler": "handler.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "PipelineConfigFunctionServiceRoleEBF3BCEC",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "PipelineConfigFunctionServiceRoleDefaultPolicy98DE9A92",
+    "PipelineConfigFunctionServiceRoleEBF3BCEC"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineConfigFunction/Resource",
+    "aws:asset:path": "asset.f2663ba31f3efe37005e138ef4e83286d1fae8b990e4d39526e5d63315e71e62",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "PipelineConfigSchedule2F7459B3": {
+   "Type": "AWS::Events::Rule",
+   "Properties": {
+    "ScheduleExpression": "rate(6 hours)",
+    "State": "ENABLED",
+    "Targets": [
+     {
+      "Arn": {
+       "Fn::GetAtt": [
+        "PipelineConfigFunction079AFC45",
+        "Arn"
+       ]
+      },
+      "Id": "Target0"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineConfigSchedule/Resource"
+   }
+  },
+  "PipelineConfigScheduleAllowEventRuleStreamingChatbotStackPipelineConfigFunction0D33FF55E9515B7D": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PipelineConfigFunction079AFC45",
+      "Arn"
+     ]
+    },
+    "Principal": "events.amazonaws.com",
+    "SourceArn": {
+     "Fn::GetAtt": [
+      "PipelineConfigSchedule2F7459B3",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineConfigSchedule/AllowEventRuleStreamingChatbotStackPipelineConfigFunction0D33FF55"
+   }
+  },
+  "PipelineLogsFunctionServiceRoleF3029800": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineLogsFunction/ServiceRole/Resource"
+   }
+  },
+  "PipelineLogsFunctionServiceRoleDefaultPolicy00EC62E1": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics",
+        "medialive:ListChannels",
+        "medialive:DescribeChannel",
+        "mediapackagev2:ListChannelGroups",
+        "mediapackagev2:ListChannels",
+        "mediapackagev2:ListOriginEndpoints",
+        "mediatailor:ListPlaybackConfigurations",
+        "cloudfront:ListDistributions"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      },
+      {
+       "Action": [
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "KBLogsBucket3E8A8F80",
+            "Arn"
+           ]
+          },
+          "/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "dynamodb:BatchWriteItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingLogsBE97608D",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingLogsBE97608D",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": "sns:Publish",
+       "Effect": "Allow",
+       "Resource": {
+        "Ref": "AlertsTopic3414BE91"
+       }
+      },
+      {
+       "Action": [
+        "s3:GetObject*",
+        "s3:GetBucket*",
+        "s3:List*"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "KBLogsBucket3E8A8F80",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "KBLogsBucket3E8A8F80",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "PipelineLogsFunctionServiceRoleDefaultPolicy00EC62E1",
+    "Roles": [
+     {
+      "Ref": "PipelineLogsFunctionServiceRoleF3029800"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineLogsFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "PipelineLogsFunctionE340BB88": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "ab84e817ae74e18c1eeddbdb7aefa3a3c9d11fd4304327ce3c66793fcf3e3456.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "KB_LOGS_BUCKET": {
+       "Ref": "KBLogsBucket3E8A8F80"
+      },
+      "KB_LOGS_PREFIX": "kb-logs/",
+      "STREAMING_REGION": "sa-east-1",
+      "MEDIATAILOR_REGION": "us-east-1",
+      "CLOUDFRONT_REGION": "us-east-1",
+      "LOGS_TABLE_NAME": {
+       "Ref": "StreamingLogsBE97608D"
+      },
+      "SNS_TOPIC_ARN": {
+       "Ref": "AlertsTopic3414BE91"
+      },
+      "ALERT_SEVERITY_THRESHOLD": "ERROR",
+      "ALERT_SUPPRESSION_MINUTES": "60"
+     }
+    },
+    "Handler": "handler.handler",
+    "MemorySize": 512,
+    "Role": {
+     "Fn::GetAtt": [
+      "PipelineLogsFunctionServiceRoleF3029800",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 900
+   },
+   "DependsOn": [
+    "PipelineLogsFunctionServiceRoleDefaultPolicy00EC62E1",
+    "PipelineLogsFunctionServiceRoleF3029800"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineLogsFunction/Resource",
+    "aws:asset:path": "asset.ab84e817ae74e18c1eeddbdb7aefa3a3c9d11fd4304327ce3c66793fcf3e3456",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "PipelineLogsSchedule02F84B2D": {
+   "Type": "AWS::Events::Rule",
+   "Properties": {
+    "ScheduleExpression": "rate(1 hour)",
+    "State": "ENABLED",
+    "Targets": [
+     {
+      "Arn": {
+       "Fn::GetAtt": [
+        "PipelineLogsFunctionE340BB88",
+        "Arn"
+       ]
+      },
+      "Id": "Target0"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineLogsSchedule/Resource"
+   }
+  },
+  "PipelineLogsScheduleAllowEventRuleStreamingChatbotStackPipelineLogsFunctionDC5E145A8BD289B2": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PipelineLogsFunctionE340BB88",
+      "Arn"
+     ]
+    },
+    "Principal": "events.amazonaws.com",
+    "SourceArn": {
+     "Fn::GetAtt": [
+      "PipelineLogsSchedule02F84B2D",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineLogsSchedule/AllowEventRuleStreamingChatbotStackPipelineLogsFunctionDC5E145A"
+   }
+  },
+  "SpringServeCredentialsD9F1D603": {
+   "Type": "AWS::SecretsManager::Secret",
+   "Properties": {
+    "Description": "Credenciais da API SpringServe (email + password)",
+    "GenerateSecretString": {
+     "GenerateStringKey": "password",
+     "SecretStringTemplate": "{\"email\":\"placeholder@empresa.com\"}"
+    },
+    "Name": "springserve/api-credentials"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/SpringServeCredentials/Resource"
+   }
+  },
+  "PipelineAdsFunctionServiceRole5391149F": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsFunction/ServiceRole/Resource"
+   }
+  },
+  "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Ref": "SpringServeCredentialsD9F1D603"
+       }
+      },
+      {
+       "Action": [
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging",
+        "s3:Abort*"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::Join": [
+         "",
+         [
+          {
+           "Fn::GetAtt": [
+            "KBConfigBucketFCBD41B2",
+            "Arn"
+           ]
+          },
+          "/*"
+         ]
+        ]
+       }
+      },
+      {
+       "Action": [
+        "dynamodb:BatchWriteItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:DescribeTable"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "StreamingConfigs49C3BEE3",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "StreamingConfigs49C3BEE3",
+             "Arn"
+            ]
+           },
+           "/index/*"
+          ]
+         ]
+        }
+       ]
+      },
+      {
+       "Action": [
+        "mediatailor:ListPlaybackConfigurations",
+        "mediatailor:GetPlaybackConfiguration"
+       ],
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE",
+    "Roles": [
+     {
+      "Ref": "PipelineAdsFunctionServiceRole5391149F"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsFunction/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "PipelineAdsFunctionB6C1190A": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
+     },
+     "S3Key": "4cdf8c4107b7e93624d5e2824356d03b8b528c470368ab5b0a10045607f4424a.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "KB_ADS_BUCKET": {
+       "Ref": "KBConfigBucketFCBD41B2"
+      },
+      "KB_ADS_PREFIX": "kb-ads/",
+      "SPRINGSERVE_SECRET_NAME": {
+       "Fn::Join": [
+        "-",
+        [
+         {
+          "Fn::Select": [
+           0,
+           {
+            "Fn::Split": [
+             "-",
+             {
+              "Fn::Select": [
+               6,
+               {
+                "Fn::Split": [
+                 ":",
+                 {
+                  "Ref": "SpringServeCredentialsD9F1D603"
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         },
+         {
+          "Fn::Select": [
+           1,
+           {
+            "Fn::Split": [
+             "-",
+             {
+              "Fn::Select": [
+               6,
+               {
+                "Fn::Split": [
+                 ":",
+                 {
+                  "Ref": "SpringServeCredentialsD9F1D603"
+                 }
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       ]
+      },
+      "SPRINGSERVE_BASE_URL": "https://video.springserve.com",
+      "CONFIGS_TABLE_NAME": {
+       "Ref": "StreamingConfigs49C3BEE3"
+      },
+      "MEDIATAILOR_REGION": "us-east-1",
+      "WORKERS": "5"
+     }
+    },
+    "Handler": "handler.handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "PipelineAdsFunctionServiceRole5391149F",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 300
+   },
+   "DependsOn": [
+    "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE",
+    "PipelineAdsFunctionServiceRole5391149F"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsFunction/Resource",
+    "aws:asset:path": "asset.4cdf8c4107b7e93624d5e2824356d03b8b528c470368ab5b0a10045607f4424a",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "PipelineAdsSchedule71CE554D": {
+   "Type": "AWS::Events::Rule",
+   "Properties": {
+    "ScheduleExpression": "rate(6 hours)",
+    "State": "ENABLED",
+    "Targets": [
+     {
+      "Arn": {
+       "Fn::GetAtt": [
+        "PipelineAdsFunctionB6C1190A",
+        "Arn"
+       ]
+      },
+      "Id": "Target0"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsSchedule/Resource"
+   }
+  },
+  "PipelineAdsScheduleAllowEventRuleStreamingChatbotStackPipelineAdsFunction20AC5720A39D93C9": {
+   "Type": "AWS::Lambda::Permission",
+   "Properties": {
+    "Action": "lambda:InvokeFunction",
+    "FunctionName": {
+     "Fn::GetAtt": [
+      "PipelineAdsFunctionB6C1190A",
+      "Arn"
+     ]
+    },
+    "Principal": "events.amazonaws.com",
+    "SourceArn": {
+     "Fn::GetAtt": [
+      "PipelineAdsSchedule71CE554D",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsSchedule/AllowEventRuleStreamingChatbotStackPipelineAdsFunction20AC5720"
+   }
+  },
+  "AlertsTopic3414BE91": {
+   "Type": "AWS::SNS::Topic",
+   "Properties": {
+    "TopicName": "StreamingAlertsNotifications"
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/AlertsTopic/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/+WSwW4bIRCGnyU+Y1plW6ntbbNWbpUtOzlVVcSy483EC6yYIa6FePdqwY6dqj3k2pzmg5+fGWa4ltefvsiPV2pPc93t5gO2Mm5Y6Z1Qe3qIVMl4E/QOWDRbW+hHnBn8hXb2bXZpm85TJbNEshytA7sFDMCwbJ9AM82SeKfun6JIKzegPpy7WdZv6GkxbFgxGLBvLOy/MZ/aeaMIkugOVhnXtTLeqXaAqbsZktCut8hOxnsCv3JumLQXPkEzIFi+lMpOEnpwodt6Z1nGBRJ7bAOjs2JTLT32aGutgahxln25/B/bl+YkBmXaTsl4G6zO1zVb+8InuPel2hJW4A0SZTsqI+PalZfmeP5WhZKg6kERAZOspyDUiL1i2KuDjGsgrkfM7jPWWrtgWSxgHNzBHDtysdqw6nPKAmsgF7yGaQbiO/Cj6ybxSCf1mCRzEvA8zU/GdTgWH6YpEWgPTEZZ1YOXcZPXOVOmJMiSjHduRJ2HO0FKognEzvwt0x/Syrtn7MDnUnM/pieg7V+VuQw8Bk5ideBHZz9U8qv8fPVEiHMfLKMBuS7xN8MWC/g3BQAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "StreamingChatbotStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "ChatApiEndpoint467C6B40": {
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "https://",
+      {
+       "Ref": "ChatApiD29796E1"
+      },
+      ".execute-api.us-east-1.",
+      {
+       "Ref": "AWS::URLSuffix"
+      },
+      "/",
+      {
+       "Ref": "ChatApiDeploymentStageprodE9C01931"
+      },
+      "/"
+     ]
+    ]
+   }
+  },
+  "ApiUrl": {
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "https://",
+      {
+       "Ref": "ChatApiD29796E1"
+      },
+      ".execute-api.us-east-1.",
+      {
+       "Ref": "AWS::URLSuffix"
+      },
+      "/",
+      {
+       "Ref": "ChatApiDeploymentStageprodE9C01931"
+      },
+      "/"
+     ]
+    ]
+   }
+  },
+  "FrontendUrl": {
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "https://",
+      {
+       "Fn::GetAtt": [
+        "FrontendDistributionE6EAF405",
+        "DomainName"
+       ]
+      }
+     ]
+    ]
+   }
+  },
+  "KBConfigBucketName": {
+   "Value": {
+    "Ref": "KBConfigBucketFCBD41B2"
+   }
+  },
+  "KBLogsBucketName": {
+   "Value": {
+    "Ref": "KBLogsBucket3E8A8F80"
+   }
+  },
+  "FrontendBucketName": {
+   "Value": {
+    "Ref": "FrontendBucketEFE2E19C"
+   }
+  },
+  "OrquestradoraFunctionName": {
+   "Value": {
+    "Ref": "OrquestradoraFunctionC93F4B46"
+   }
+  },
+  "OrquestradoraFunctionUrl": {
+   "Value": {
+    "Fn::GetAtt": [
+     "OrquestradoraFunctionFunctionUrl54F4956A",
+     "FunctionUrl"
+    ]
+   }
+  },
+  "CognitoUserPoolId": {
+   "Value": {
+    "Ref": "ChatUserPool04B192D3"
+   }
+  },
+  "CognitoClientId": {
+   "Value": {
+    "Ref": "ChatUserPoolChatWebClient9D4CB65A"
+   }
+  },
+  "AlertsTopicArn": {
+   "Value": {
+    "Ref": "AlertsTopic3414BE91"
+   }
+  },
+  "ConfigsTableName": {
+   "Value": {
+    "Ref": "StreamingConfigs49C3BEE3"
+   }
+  },
+  "LogsTableName": {
+   "Value": {
+    "Ref": "StreamingLogsBE97608D"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

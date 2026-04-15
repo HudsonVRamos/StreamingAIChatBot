@@ -1,0 +1,5 @@
+aws-cdk-lib>=2.150.0
+constructs>=10.0.0
+aws-cdk.aws-lambda-python-alpha>=2.150.0a0
+pytest>=7.4.0
+hypothesis>=6.100.0

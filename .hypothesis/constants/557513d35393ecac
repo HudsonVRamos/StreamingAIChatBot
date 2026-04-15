@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\lambdas\orquestradora\handler.py
+# hypothesis_version: 6.141.1
+
+[200, 400, 500, 504, '*', 'AGENT_ALIAS_ID', 'AGENT_ID', 'Content-Type', 'Invalid request: %s', 'OPTIONS', 'POST,OPTIONS', 'Unexpected error: %s', 'application/json', 'body', 'bytes', 'chunk', 'completion', 'erro', 'headers', 'httpMethod', 'pergunta', 'resposta', 'statusCode', 'timeout', 'utf-8']

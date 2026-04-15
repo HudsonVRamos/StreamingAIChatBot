@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\stacks\bedrock_kb_stack.py
+# hypothesis_version: 6.141.1
+
+['KBConfig', 'KBConfigDataSource', 'KBConfigRole', 'KBLogs', 'KBLogsDataSource', 'KBLogsRole', 'KB_CONFIG', 'KB_LOGS', 'NONE', 'S3', 'VECTOR', 'bedrock:InvokeModel', 'kb-config-s3-source', 'kb-config/', 'kb-logs-s3-source', 'kb-logs/']

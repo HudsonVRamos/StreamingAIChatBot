@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Streaming Chatbot</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <h1>⚡ Streaming Chatbot</h1>
+            <p class="login-subtitle">Gestão Inteligente de Canais</p>
+            <form id="login-form" class="login-form">
+                <input type="email" id="login-email" placeholder="Email" required autocomplete="email" />
+                <input type="password" id="login-password" placeholder="Senha" required autocomplete="current-password" />
+
+                <!-- MFA TOTP setup (first login with MFA) -->
+                <div id="mfa-setup-section" hidden>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 8px;">
+                        Configure seu autenticador (Google Authenticator, Authy, etc.)
+                    </p>
+                    <div id="mfa-qr-container" style="text-align: center; margin-bottom: 12px;"></div>
+                    <p id="mfa-secret-display" style="color: var(--accent); font-size: 0.75rem; text-align: center; word-break: break-all; margin-bottom: 8px;"></p>
+                    <input type="text" id="mfa-setup-code" placeholder="Código do autenticador (6 dígitos)" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" />
+                </div>
+
+                <!-- MFA TOTP verification (subsequent logins) -->
+                <div id="mfa-verify-section" hidden>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 8px;">
+                        Digite o código do seu autenticador
+                    </p>
+                    <input type="text" id="mfa-verify-code" placeholder="Código TOTP (6 dígitos)" maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" />
+                </div>
+
+                <button type="submit">Entrar</button>
+                <p id="login-error" class="login-error" hidden></p>
+            </form>
+        </div>
+    </div>
+    <script src="auth.js"></script>
+</body>
+</html>

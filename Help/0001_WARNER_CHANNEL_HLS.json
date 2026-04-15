@@ -1,0 +1,37 @@
+{
+  "OriginEndpointName": "0001_WARNER_CHANNEL_HLS",
+  "ContainerType": "CMAF",
+  "Segment": {
+    "SegmentDurationSeconds": 6,
+    "SegmentName": "segment",
+    "TsUseAudioRenditionGroup": true,
+    "IncludeIframeOnlyStreams": false,
+    "TsIncludeDvbSubtitles": true,
+    "Encryption": {
+      "EncryptionMethod": {
+        "CmafEncryptionMethod": "CBCS"
+      },
+      "SpekeKeyProvider": {
+        "EncryptionContractConfiguration": {
+          "PresetSpeke20Audio": "SHARED",
+          "PresetSpeke20Video": "SHARED"
+        },
+        "ResourceId": "Live_0001",
+        "DrmSystems": [
+          "FAIRPLAY"
+        ],
+        "RoleArn": "arn:aws:iam::761018874615:role/APIInvokeMediaPackageV2",
+        "Url": "https://wgz3208af4.execute-api.sa-east-1.amazonaws.com/PROD_V2/NOKR"
+      }
+    }
+  },
+  "StartoverWindowSeconds": 900,
+  "HlsManifests": [
+    {
+      "ManifestName": "master",
+      "ManifestWindowSeconds": 7200,
+      "UrlEncodeChildManifest": false
+    }
+  ],
+  "Tags": {}
+}

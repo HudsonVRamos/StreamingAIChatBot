@@ -1,0 +1,34 @@
+{
+  "version": "53.0.0",
+  "files": {
+    "449bd01d1fc5e9cd773b9a8c3bb0cc20ed390de42ac5b80f279b8793aa3223b5": {
+      "displayName": "OrquestradoraFunction/Code",
+      "source": {
+        "path": "asset.449bd01d1fc5e9cd773b9a8c3bb0cc20ed390de42ac5b80f279b8793aa3223b5",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "current_account-current_region-c373fcea": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "449bd01d1fc5e9cd773b9a8c3bb0cc20ed390de42ac5b80f279b8793aa3223b5.zip",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    },
+    "eca46da8e994e90918d38f3271e6912014bdbafe9c39d8f6c7569fa3d7e7c5ec": {
+      "displayName": "StreamingChatbotApiStack Template",
+      "source": {
+        "path": "StreamingChatbotApiStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region-727b3415": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "eca46da8e994e90918d38f3271e6912014bdbafe9c39d8f6c7569fa3d7e7c5ec.json",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

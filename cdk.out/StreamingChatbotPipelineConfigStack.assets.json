@@ -1,0 +1,34 @@
+{
+  "version": "53.0.0",
+  "files": {
+    "33f886888803a790e6bddf54a92853ee23b405637454866c90fb8c084b555124": {
+      "displayName": "PipelineConfigFunction/Code",
+      "source": {
+        "path": "asset.33f886888803a790e6bddf54a92853ee23b405637454866c90fb8c084b555124",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "current_account-current_region-281370da": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "33f886888803a790e6bddf54a92853ee23b405637454866c90fb8c084b555124.zip",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    },
+    "71d72f048c899925d718e025dcded5a79026e0cecfb45b34bc2209931631cbc2": {
+      "displayName": "StreamingChatbotPipelineConfigStack Template",
+      "source": {
+        "path": "StreamingChatbotPipelineConfigStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "current_account-current_region-677c0a7d": {
+          "bucketName": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}",
+          "objectKey": "71d72f048c899925d718e025dcded5a79026e0cecfb45b34bc2209931631cbc2.json",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/cdk-hnb659fds-file-publishing-role-${AWS::AccountId}-${AWS::Region}"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

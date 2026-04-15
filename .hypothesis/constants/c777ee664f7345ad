@@ -1,0 +1,4 @@
+# file: C:\Users\HUD\Desktop\AWS_CHATBOT\lambdas\pipeline_ads\shared\auth.py
+# hypothesis_version: 6.141.1
+
+[401, 'Authorization', 'Content-Type', 'email', 'password', 'token']
