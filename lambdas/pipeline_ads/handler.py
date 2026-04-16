@@ -331,10 +331,8 @@ def handler(event, context):
         "skipped_validation": 0,
     }
 
-    # --- Phase 1: supply_tags via SQS batch processing ---
-    # Sends tag IDs to SQS; Pipeline_Ads_Batch fetches priorities
-    # only for preroll/midroll/postroll tags (top 5 each)
-    supply_tags = _queue_supply_tags_for_batch_processing(auth, s3, ddb, results)
+    # --- Phase 1: supply_tags (direct processing) ---
+    supply_tags = _process_supply_tags_direct(auth, s3, ddb, results)
 
     # --- Phase 2: remaining collectors in parallel ---
     # Build supply tag name lookup for report enrichment
@@ -782,75 +780,6 @@ def _process_priorities_only(auth, s3, ddb, results):
                 logger.warning(f"Failed to update priorities for supply_tag {tag_id}: {exc}")
     
     logger.info(f"Priorities atualizadas: {updated} supply tags")
-
-
-def _queue_supply_tags_for_batch_processing(auth, s3, ddb, results):
-    """Queue supply tags for batch processing via SQS.
-
-    Fetches the list of supply tags (without priorities) and sends
-    them in batches to SQS for parallel processing.
-    
-    If SUPPLY_TAGS_QUEUE_URL is not set or SQS fails, falls back to
-    direct processing (normalize without demand priorities).
-    Returns list of normalized supply tags for correlation.
-    """
-    logger.info("Coletando supply tags para processamento em batch")
-    try:
-        raw_tags = _paginate_springserve(
-            auth, SPRINGSERVE_ENDPOINTS["supply_tags"]
-        )
-    except Exception as exc:
-        _err(results, "supply_tags", str(exc))
-        return []
-
-    queue_url = os.environ.get("SUPPLY_TAGS_QUEUE_URL", "")
-
-    if not queue_url:
-        logger.warning(
-            "SUPPLY_TAGS_QUEUE_URL não configurada — processando supply tags diretamente (sem priorities)"
-        )
-        return _process_supply_tags_direct(auth, s3, ddb, results, raw_tags)
-
-    logger.info("Supply tags: %d encontradas, enviando para SQS em batches", len(raw_tags))
-
-    batch_size = 20
-    batches_sent = 0
-    sqs = boto3.client("sqs", config=BOTO_CONFIG)
-
-    for i in range(0, len(raw_tags), batch_size):
-        batch = raw_tags[i:i + batch_size]
-        compact_batch = [
-            {
-                "id": tag.get("id"),
-                "name": tag.get("name", ""),
-                "is_active": tag.get("is_active"),
-                "account_id": tag.get("account_id"),
-                "created_at": tag.get("created_at", ""),
-                "updated_at": tag.get("updated_at", ""),
-            }
-            for tag in batch
-        ]
-        try:
-            sqs.send_message(
-                QueueUrl=queue_url,
-                MessageBody=json.dumps({
-                    "batch_id": f"batch_{i//batch_size + 1}",
-                    "supply_tags": compact_batch,
-                    "total_batches": (len(raw_tags) + batch_size - 1) // batch_size,
-                }),
-            )
-            batches_sent += 1
-        except Exception as exc:
-            logger.error("Falha ao enviar batch %d para SQS: %s", i//batch_size + 1, exc)
-            _err(results, f"sqs_batch_{i//batch_size + 1}", str(exc))
-
-    if batches_sent == 0:
-        logger.warning("Nenhum batch enviado ao SQS — processando supply tags diretamente")
-        return _process_supply_tags_direct(auth, s3, ddb, results, raw_tags)
-
-    logger.info("Supply tags: %d batches enviados para SQS", batches_sent)
-    # Return normalized tags (without priorities) for correlation use
-    return _process_supply_tags_direct(auth, s3, ddb, results, raw_tags, store=False)
 
 
 def _process_supply_tags_direct(auth, s3, ddb, results, raw_tags=None, store=True):

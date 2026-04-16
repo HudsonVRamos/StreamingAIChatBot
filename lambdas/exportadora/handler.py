@@ -266,6 +266,76 @@ def query_dynamodb_configs(
     return records
 
 
+def _enrich_report_supply_tag_names(
+    records: list[dict[str, Any]], table_name: str
+) -> list[dict[str, Any]]:
+    """Enrich report records with supply_tag_name from supply_tag records.
+
+    For reports where supply_tag_name is empty or looks like an ID,
+    looks up the real name from supply_tag records in DynamoDB.
+    Also extracts platform/device from the name for filtering.
+    """
+    # Collect IDs that need enrichment
+    needs_enrichment = [
+        r for r in records
+        if r.get("tipo") == "report" and (
+            not r.get("supply_tag_name")
+            or str(r.get("supply_tag_name", "")).isdigit()
+        )
+    ]
+    if not needs_enrichment:
+        return records
+
+    # Build lookup from supply_tag records
+    try:
+        table = dynamodb_resource.Table(table_name)
+        from boto3.dynamodb.conditions import Key as _Key
+        resp = table.query(
+            KeyConditionExpression=_Key("PK").eq("SpringServe#supply_tag"),
+            ProjectionExpression="supply_tag_id, nome, #dev, platform, canal_nome",
+            ExpressionAttributeNames={"#dev": "device"},
+        )
+        lookup: dict[str, dict] = {}
+        for item in resp.get("Items", []):
+            sid = str(item.get("supply_tag_id", ""))
+            if sid:
+                lookup[sid] = item
+        # Paginate if needed
+        while resp.get("LastEvaluatedKey"):
+            resp = table.query(
+                KeyConditionExpression=_Key("PK").eq("SpringServe#supply_tag"),
+                ProjectionExpression="supply_tag_id, nome, #dev, platform, canal_nome",
+                ExpressionAttributeNames={"#dev": "device"},
+                ExclusiveStartKey=resp["LastEvaluatedKey"],
+            )
+            for item in resp.get("Items", []):
+                sid = str(item.get("supply_tag_id", ""))
+                if sid:
+                    lookup[sid] = item
+    except Exception as exc:
+        logger.warning("_enrich_report_supply_tag_names: lookup failed: %s", exc)
+        return records
+
+    # Apply enrichment
+    for rec in records:
+        if rec.get("tipo") != "report":
+            continue
+        sid = str(rec.get("supply_tag_id", ""))
+        if sid and sid in lookup:
+            tag = lookup[sid]
+            if not rec.get("supply_tag_name") or str(rec.get("supply_tag_name", "")).isdigit():
+                rec["supply_tag_name"] = tag.get("nome", "")
+            # Always copy device/platform/canal_nome for filtering
+            if not rec.get("device"):
+                rec["device"] = tag.get("device", "")
+            if not rec.get("platform"):
+                rec["platform"] = tag.get("platform", "")
+            if not rec.get("canal_nome"):
+                rec["canal_nome"] = tag.get("canal_nome", "")
+
+    return records
+
+
 def query_dynamodb_ads(
     table_name: str, filtros: dict[str, Any]
 ) -> list[dict[str, Any]]:
@@ -516,6 +586,11 @@ def query_s3_data(
                 results = query_dynamodb_ads(
                     table_name, filtros,
                 )
+                # Enrich report records: if supply_tag_name is missing/empty,
+                # look it up from supply_tag records in the same table
+                tipo_filtro = filtros.get("tipo", "")
+                if tipo_filtro == "report" or not tipo_filtro:
+                    results = _enrich_report_supply_tag_names(results, table_name)
             elif is_configs:
                 results = query_dynamodb_configs(
                     table_name, filtros,
@@ -804,21 +879,32 @@ def filter_records(
             continue
 
         # device / platform / canal_nome substring filters
+        # Works for supply_tag records (have device/platform fields)
+        # AND for report records (fall back to supply_tag_name substring)
         device_filter = filtros.get("device", "").lower().replace(" ", "_")
         platform_filter = filtros.get("platform", "").lower()
         canal_nome_filter = filtros.get("canal_nome", "").lower()
 
-        if device_filter:
-            rec_device = (rec.get("device") or rec.get("nome", "")).lower().replace(" ", "_")
-            if device_filter not in rec_device:
-                continue
-        if platform_filter:
-            rec_platform = (rec.get("platform") or rec.get("nome", "")).lower()
-            if platform_filter not in rec_platform:
-                continue
+        # Build a searchable string from all name-like fields
+        name_haystack = " ".join(filter(None, [
+            str(rec.get("device") or ""),
+            str(rec.get("platform") or ""),
+            str(rec.get("canal_nome") or ""),
+            str(rec.get("nome") or ""),
+            str(rec.get("supply_tag_name") or ""),
+        ])).lower().replace(" ", "_")
+
+        if device_filter and device_filter not in name_haystack:
+            continue
+        if platform_filter and platform_filter not in name_haystack:
+            continue
         if canal_nome_filter:
-            rec_canal = (rec.get("canal_nome") or rec.get("nome", "") or rec.get("supply_tag_name", "")).lower()
-            if canal_nome_filter not in rec_canal:
+            canal_haystack = " ".join(filter(None, [
+                str(rec.get("canal_nome") or ""),
+                str(rec.get("nome") or ""),
+                str(rec.get("supply_tag_name") or ""),
+            ])).lower()
+            if canal_nome_filter not in canal_haystack:
                 continue
 
         for key, expected in filtros.items():

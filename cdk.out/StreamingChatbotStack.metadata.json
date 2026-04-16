@@ -269,30 +269,6 @@
       "data": "PipelineLogsScheduleAllowEventRuleStreamingChatbotStackPipelineLogsFunctionDC5E145A8BD289B2"
     }
   ],
-  "/StreamingChatbotStack/SpringServeCredentials/Resource": [
-    {
-      "type": "aws:cdk:logicalId",
-      "data": "SpringServeCredentialsD9F1D603"
-    }
-  ],
-  "/StreamingChatbotStack/PipelineAdsFunction/Resource": [
-    {
-      "type": "aws:cdk:logicalId",
-      "data": "PipelineAdsFunctionB6C1190A"
-    }
-  ],
-  "/StreamingChatbotStack/PipelineAdsSchedule/Resource": [
-    {
-      "type": "aws:cdk:logicalId",
-      "data": "PipelineAdsSchedule71CE554D"
-    }
-  ],
-  "/StreamingChatbotStack/PipelineAdsSchedule/AllowEventRuleStreamingChatbotStackPipelineAdsFunction20AC5720": [
-    {
-      "type": "aws:cdk:logicalId",
-      "data": "PipelineAdsScheduleAllowEventRuleStreamingChatbotStackPipelineAdsFunction20AC5720A39D93C9"
-    }
-  ],
   "/StreamingChatbotStack/AlertsTopic/Resource": [
     {
       "type": "aws:cdk:logicalId",
@@ -303,6 +279,30 @@
     {
       "type": "aws:cdk:logicalId",
       "data": "CDKMetadata"
+    }
+  ],
+  "/StreamingChatbotStack/Exports/Output{\"Fn::GetAtt\":[\"KBConfigBucketFCBD41B2\",\"Arn\"]}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputFnGetAttKBConfigBucketFCBD41B2ArnB3CEE605"
+    }
+  ],
+  "/StreamingChatbotStack/Exports/Output{\"Fn::GetAtt\":[\"StreamingConfigs49C3BEE3\",\"Arn\"]}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputFnGetAttStreamingConfigs49C3BEE3Arn825DD685"
+    }
+  ],
+  "/StreamingChatbotStack/Exports/Output{\"Ref\":\"KBConfigBucketFCBD41B2\"}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputRefKBConfigBucketFCBD41B2BF0466BE"
+    }
+  ],
+  "/StreamingChatbotStack/Exports/Output{\"Ref\":\"StreamingConfigs49C3BEE3\"}": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ExportsOutputRefStreamingConfigs49C3BEE373248C35"
     }
   ],
   "/StreamingChatbotStack/KBConfigBucket/Policy/Resource": [
@@ -455,12 +455,6 @@
       "data": "PipelineLogsFunctionServiceRoleF3029800"
     }
   ],
-  "/StreamingChatbotStack/PipelineAdsFunction/ServiceRole/Resource": [
-    {
-      "type": "aws:cdk:logicalId",
-      "data": "PipelineAdsFunctionServiceRole5391149F"
-    }
-  ],
   "/StreamingChatbotStack/FrontendDistribution/Origin1/S3OriginAccessControl/Resource": [
     {
       "type": "aws:cdk:logicalId",
@@ -507,12 +501,6 @@
     {
       "type": "aws:cdk:logicalId",
       "data": "PipelineLogsFunctionServiceRoleDefaultPolicy00EC62E1"
-    }
-  ],
-  "/StreamingChatbotStack/PipelineAdsFunction/ServiceRole/DefaultPolicy/Resource": [
-    {
-      "type": "aws:cdk:logicalId",
-      "data": "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE"
     }
   ],
   "/StreamingChatbotStack/ChatApi/Default/chat/OPTIONS/Resource": [

@@ -46,14 +46,19 @@ class SpringServeAuth:
         self.session.headers["Authorization"] = self.token
         return self.token
 
-    def request(self, method, path, **kwargs):
+    def request(self, method, path, timeout=None, **kwargs):
         """Make an HTTP request with retry on 429 and re-auth on 401.
 
         Retries up to MAX_RETRIES times with exponential backoff
         on HTTP 429 (Too Many Requests).
         Re-authenticates once on HTTP 401 (expired token).
+        Always enforces a 15s connect / 30s read timeout unless overridden.
         """
         url = f"{self.base_url}{path}"
+        # Use custom timeout or default
+        if timeout is None:
+            timeout = (15, 120)
+        kwargs.setdefault("timeout", timeout)
 
         for attempt in range(MAX_RETRIES + 1):
             resp = self.session.request(method, url, **kwargs)

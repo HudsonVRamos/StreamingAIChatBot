@@ -1727,7 +1727,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
      },
-     "S3Key": "38362a66db279f9cd5cde7503a430b31b041429933530b144761e3f570e72316.zip"
+     "S3Key": "9d6ffcf0152f47485d124d057df0bd1ac51af6ad815293ab2493a9a517179408.zip"
     },
     "Environment": {
      "Variables": {
@@ -1764,7 +1764,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "StreamingChatbotStack/ConfiguradoraFunction/Resource",
-    "aws:asset:path": "asset.38362a66db279f9cd5cde7503a430b31b041429933530b144761e3f570e72316",
+    "aws:asset:path": "asset.9d6ffcf0152f47485d124d057df0bd1ac51af6ad815293ab2493a9a517179408",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -2050,7 +2050,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
      },
-     "S3Key": "71ec776b1cb80cd362400ed4aeaf983a0e0a5e53ca9d31e97752dd7bc731deab.zip"
+     "S3Key": "5f238f9d6a58ff8c506b6200c2bc3af803b692093938396d9ba1bab3bb90ec9a.zip"
     },
     "Environment": {
      "Variables": {
@@ -2095,7 +2095,7 @@
    ],
    "Metadata": {
     "aws:cdk:path": "StreamingChatbotStack/ExportadoraFunction/Resource",
-    "aws:asset:path": "asset.71ec776b1cb80cd362400ed4aeaf983a0e0a5e53ca9d31e97752dd7bc731deab",
+    "aws:asset:path": "asset.5f238f9d6a58ff8c506b6200c2bc3af803b692093938396d9ba1bab3bb90ec9a",
     "aws:asset:is-bundled": false,
     "aws:asset:property": "Code"
    }
@@ -2562,290 +2562,6 @@
     "aws:cdk:path": "StreamingChatbotStack/PipelineLogsSchedule/AllowEventRuleStreamingChatbotStackPipelineLogsFunctionDC5E145A"
    }
   },
-  "SpringServeCredentialsD9F1D603": {
-   "Type": "AWS::SecretsManager::Secret",
-   "Properties": {
-    "Description": "Credenciais da API SpringServe (email + password)",
-    "GenerateSecretString": {
-     "GenerateStringKey": "password",
-     "SecretStringTemplate": "{\"email\":\"placeholder@empresa.com\"}"
-    },
-    "Name": "springserve/api-credentials"
-   },
-   "UpdateReplacePolicy": "Delete",
-   "DeletionPolicy": "Delete",
-   "Metadata": {
-    "aws:cdk:path": "StreamingChatbotStack/SpringServeCredentials/Resource"
-   }
-  },
-  "PipelineAdsFunctionServiceRole5391149F": {
-   "Type": "AWS::IAM::Role",
-   "Properties": {
-    "AssumeRolePolicyDocument": {
-     "Statement": [
-      {
-       "Action": "sts:AssumeRole",
-       "Effect": "Allow",
-       "Principal": {
-        "Service": "lambda.amazonaws.com"
-       }
-      }
-     ],
-     "Version": "2012-10-17"
-    },
-    "ManagedPolicyArns": [
-     {
-      "Fn::Join": [
-       "",
-       [
-        "arn:",
-        {
-         "Ref": "AWS::Partition"
-        },
-        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-       ]
-      ]
-     }
-    ]
-   },
-   "Metadata": {
-    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsFunction/ServiceRole/Resource"
-   }
-  },
-  "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE": {
-   "Type": "AWS::IAM::Policy",
-   "Properties": {
-    "PolicyDocument": {
-     "Statement": [
-      {
-       "Action": [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-       ],
-       "Effect": "Allow",
-       "Resource": {
-        "Ref": "SpringServeCredentialsD9F1D603"
-       }
-      },
-      {
-       "Action": [
-        "s3:PutObject",
-        "s3:PutObjectLegalHold",
-        "s3:PutObjectRetention",
-        "s3:PutObjectTagging",
-        "s3:PutObjectVersionTagging",
-        "s3:Abort*"
-       ],
-       "Effect": "Allow",
-       "Resource": {
-        "Fn::Join": [
-         "",
-         [
-          {
-           "Fn::GetAtt": [
-            "KBConfigBucketFCBD41B2",
-            "Arn"
-           ]
-          },
-          "/*"
-         ]
-        ]
-       }
-      },
-      {
-       "Action": [
-        "dynamodb:BatchWriteItem",
-        "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
-        "dynamodb:DeleteItem",
-        "dynamodb:DescribeTable"
-       ],
-       "Effect": "Allow",
-       "Resource": [
-        {
-         "Fn::GetAtt": [
-          "StreamingConfigs49C3BEE3",
-          "Arn"
-         ]
-        },
-        {
-         "Fn::Join": [
-          "",
-          [
-           {
-            "Fn::GetAtt": [
-             "StreamingConfigs49C3BEE3",
-             "Arn"
-            ]
-           },
-           "/index/*"
-          ]
-         ]
-        }
-       ]
-      },
-      {
-       "Action": [
-        "mediatailor:ListPlaybackConfigurations",
-        "mediatailor:GetPlaybackConfiguration"
-       ],
-       "Effect": "Allow",
-       "Resource": "*"
-      }
-     ],
-     "Version": "2012-10-17"
-    },
-    "PolicyName": "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE",
-    "Roles": [
-     {
-      "Ref": "PipelineAdsFunctionServiceRole5391149F"
-     }
-    ]
-   },
-   "Metadata": {
-    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsFunction/ServiceRole/DefaultPolicy/Resource"
-   }
-  },
-  "PipelineAdsFunctionB6C1190A": {
-   "Type": "AWS::Lambda::Function",
-   "Properties": {
-    "Code": {
-     "S3Bucket": {
-      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-us-east-1"
-     },
-     "S3Key": "4cdf8c4107b7e93624d5e2824356d03b8b528c470368ab5b0a10045607f4424a.zip"
-    },
-    "Environment": {
-     "Variables": {
-      "KB_ADS_BUCKET": {
-       "Ref": "KBConfigBucketFCBD41B2"
-      },
-      "KB_ADS_PREFIX": "kb-ads/",
-      "SPRINGSERVE_SECRET_NAME": {
-       "Fn::Join": [
-        "-",
-        [
-         {
-          "Fn::Select": [
-           0,
-           {
-            "Fn::Split": [
-             "-",
-             {
-              "Fn::Select": [
-               6,
-               {
-                "Fn::Split": [
-                 ":",
-                 {
-                  "Ref": "SpringServeCredentialsD9F1D603"
-                 }
-                ]
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         },
-         {
-          "Fn::Select": [
-           1,
-           {
-            "Fn::Split": [
-             "-",
-             {
-              "Fn::Select": [
-               6,
-               {
-                "Fn::Split": [
-                 ":",
-                 {
-                  "Ref": "SpringServeCredentialsD9F1D603"
-                 }
-                ]
-               }
-              ]
-             }
-            ]
-           }
-          ]
-         }
-        ]
-       ]
-      },
-      "SPRINGSERVE_BASE_URL": "https://video.springserve.com",
-      "CONFIGS_TABLE_NAME": {
-       "Ref": "StreamingConfigs49C3BEE3"
-      },
-      "MEDIATAILOR_REGION": "us-east-1",
-      "WORKERS": "5"
-     }
-    },
-    "Handler": "handler.handler",
-    "Role": {
-     "Fn::GetAtt": [
-      "PipelineAdsFunctionServiceRole5391149F",
-      "Arn"
-     ]
-    },
-    "Runtime": "python3.12",
-    "Timeout": 300
-   },
-   "DependsOn": [
-    "PipelineAdsFunctionServiceRoleDefaultPolicy2EA4CFEE",
-    "PipelineAdsFunctionServiceRole5391149F"
-   ],
-   "Metadata": {
-    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsFunction/Resource",
-    "aws:asset:path": "asset.4cdf8c4107b7e93624d5e2824356d03b8b528c470368ab5b0a10045607f4424a",
-    "aws:asset:is-bundled": false,
-    "aws:asset:property": "Code"
-   }
-  },
-  "PipelineAdsSchedule71CE554D": {
-   "Type": "AWS::Events::Rule",
-   "Properties": {
-    "ScheduleExpression": "rate(6 hours)",
-    "State": "ENABLED",
-    "Targets": [
-     {
-      "Arn": {
-       "Fn::GetAtt": [
-        "PipelineAdsFunctionB6C1190A",
-        "Arn"
-       ]
-      },
-      "Id": "Target0"
-     }
-    ]
-   },
-   "Metadata": {
-    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsSchedule/Resource"
-   }
-  },
-  "PipelineAdsScheduleAllowEventRuleStreamingChatbotStackPipelineAdsFunction20AC5720A39D93C9": {
-   "Type": "AWS::Lambda::Permission",
-   "Properties": {
-    "Action": "lambda:InvokeFunction",
-    "FunctionName": {
-     "Fn::GetAtt": [
-      "PipelineAdsFunctionB6C1190A",
-      "Arn"
-     ]
-    },
-    "Principal": "events.amazonaws.com",
-    "SourceArn": {
-     "Fn::GetAtt": [
-      "PipelineAdsSchedule71CE554D",
-      "Arn"
-     ]
-    }
-   },
-   "Metadata": {
-    "aws:cdk:path": "StreamingChatbotStack/PipelineAdsSchedule/AllowEventRuleStreamingChatbotStackPipelineAdsFunction20AC5720"
-   }
-  },
   "AlertsTopic3414BE91": {
    "Type": "AWS::SNS::Topic",
    "Properties": {
@@ -2858,7 +2574,7 @@
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/+WSwW4bIRCGnyU+Y1plW6ntbbNWbpUtOzlVVcSy483EC6yYIa6FePdqwY6dqj3k2pzmg5+fGWa4ltefvsiPV2pPc93t5gO2Mm5Y6Z1Qe3qIVMl4E/QOWDRbW+hHnBn8hXb2bXZpm85TJbNEshytA7sFDMCwbJ9AM82SeKfun6JIKzegPpy7WdZv6GkxbFgxGLBvLOy/MZ/aeaMIkugOVhnXtTLeqXaAqbsZktCut8hOxnsCv3JumLQXPkEzIFi+lMpOEnpwodt6Z1nGBRJ7bAOjs2JTLT32aGutgahxln25/B/bl+YkBmXaTsl4G6zO1zVb+8InuPel2hJW4A0SZTsqI+PalZfmeP5WhZKg6kERAZOspyDUiL1i2KuDjGsgrkfM7jPWWrtgWSxgHNzBHDtysdqw6nPKAmsgF7yGaQbiO/Cj6ybxSCf1mCRzEvA8zU/GdTgWH6YpEWgPTEZZ1YOXcZPXOVOmJMiSjHduRJ2HO0FKognEzvwt0x/Syrtn7MDnUnM/pieg7V+VuQw8Bk5ideBHZz9U8qv8fPVEiHMfLKMBuS7xN8MWC/g3BQAA"
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/+WSwW7bMAyGn6U5K9pQb8C2m+ugtyGG056GoZBlxmVjS4FINTMEv/sgKWnSYTv0up74Sb9+iiJ1La8/fZEfr9SBlrrbLQdsZdiw0juhDvQQqJDhxusdsKi2JtOPsBjxF5rFt8WlLZ6nQiaJZD5aerYrGIBh3T6BZlrM4p26f4os1XZAPZ27mddv6Gk2bFgxjGDeWNh/Yz6180YRzKKbjBpt18pwp9oBYncTzELb3iBbGe4JXG3tELUXPkE1IBi+lPLOLPRgfbd11rAMKyR22HpGa8SmWDvs0ZRaA1FlDbuc/B/bl+ZZDGpsOyXDrTc6pau25oVPcO9ytTnU4EYkSnZUowyNzS9N8fytMs2CigdFBEyyjEGoPfaK4aAmGRogLveY3GcstbbesFjBfrDTeOzIxWrDqk9XZmiArHca4gzEd+BH20XxSCf1eEniWcBznJ8MjT8W7+OUyJAMd3aPOo0uwjyLyhPb8W95/pBqZ5+xA5cKSa+NBaLpXxWx9rz3PIt64kdrPhTyq/x89USIS+cN4wiyyfE3Er4QGxUFAAA="
    },
    "Metadata": {
     "aws:cdk:path": "StreamingChatbotStack/CDKMetadata/Default"
@@ -2977,6 +2693,44 @@
   "LogsTableName": {
    "Value": {
     "Ref": "StreamingLogsBE97608D"
+   }
+  },
+  "ExportsOutputFnGetAttKBConfigBucketFCBD41B2ArnB3CEE605": {
+   "Value": {
+    "Fn::GetAtt": [
+     "KBConfigBucketFCBD41B2",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "StreamingChatbotStack:ExportsOutputFnGetAttKBConfigBucketFCBD41B2ArnB3CEE605"
+   }
+  },
+  "ExportsOutputFnGetAttStreamingConfigs49C3BEE3Arn825DD685": {
+   "Value": {
+    "Fn::GetAtt": [
+     "StreamingConfigs49C3BEE3",
+     "Arn"
+    ]
+   },
+   "Export": {
+    "Name": "StreamingChatbotStack:ExportsOutputFnGetAttStreamingConfigs49C3BEE3Arn825DD685"
+   }
+  },
+  "ExportsOutputRefKBConfigBucketFCBD41B2BF0466BE": {
+   "Value": {
+    "Ref": "KBConfigBucketFCBD41B2"
+   },
+   "Export": {
+    "Name": "StreamingChatbotStack:ExportsOutputRefKBConfigBucketFCBD41B2BF0466BE"
+   }
+  },
+  "ExportsOutputRefStreamingConfigs49C3BEE373248C35": {
+   "Value": {
+    "Ref": "StreamingConfigs49C3BEE3"
+   },
+   "Export": {
+    "Name": "StreamingChatbotStack:ExportsOutputRefStreamingConfigs49C3BEE373248C35"
    }
   }
  },

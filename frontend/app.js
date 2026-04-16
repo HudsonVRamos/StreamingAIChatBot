@@ -404,14 +404,15 @@ async function sendMessage(text) {
             // Check if agent response contains config download marker
             const configDlMatch = resposta.match(/\[DOWNLOAD_CONFIG:([^\]:]+):([^\]:]+):([^\]]+)\]/);
 
-            // Check if agent response contains export download marker
-            let exportDlMatch = resposta.match(/\[DOWNLOAD_EXPORT:([^\]:]+):([^\]]+)\]/);
-            if (!exportDlMatch) {
-                const filenameMatch = resposta.match(/export-\w+-\d{4}-\d{2}-\d{2}T[\d-]+Z-[a-f0-9]+\.(csv|json)/);
-                if (filenameMatch) {
-                    exportDlMatch = [null, filenameMatch[0], filenameMatch[1]];
-                }
+            // Check if agent response contains export download markers (may be multiple)
+            const exportDlMatches = [...resposta.matchAll(/\[DOWNLOAD_EXPORT:([^\]:]+):([^\]]+)\]/g)];
+            // Legacy: also detect bare filenames
+            if (exportDlMatches.length === 0) {
+                const filenameMatches = [...resposta.matchAll(/export-\w+-\d{4}-\d{2}-\d{2}T[\d-]+Z-[a-f0-9]+\.(csv|json)/g)];
+                filenameMatches.forEach(m => exportDlMatches.push([null, m[0], m[1]]));
             }
+            // Keep single alias for backward compat
+            const exportDlMatch = exportDlMatches.length > 0 ? exportDlMatches[0] : null;
 
             // Check for analytics chart marker
             const chartMatch = resposta.match(/\[CHART_DATA:(\{[\s\S]*?\})\]/);
@@ -461,7 +462,8 @@ async function sendMessage(text) {
             // Clean markers from text before displaying
             let cleanResposta = resposta;
             if (configDlMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_CONFIG:[^\]]+\]/, '').trim();
-            if (exportDlMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_EXPORT:[^\]]+\]/, '').trim();
+            // Remove all DOWNLOAD_EXPORT markers
+            cleanResposta = cleanResposta.replace(/\[DOWNLOAD_EXPORT:[^\]]+\]/g, '').trim();
             if (chartMatch) cleanResposta = cleanResposta.replace(/\[CHART_DATA:\{[\s\S]*?\}\]/, '').trim();
             if (metricsMatch) cleanResposta = cleanResposta.replace(metricsMatch[0], '').trim();
             if (revenueMatch) cleanResposta = cleanResposta.replace(revenueMatch[0], '').trim();
@@ -573,10 +575,11 @@ async function sendMessage(text) {
                 }
             }
 
-            // Handle export download
-            if (exportDlMatch) {
-                const exportFilename = exportDlMatch[1];
-                const exportExt = exportDlMatch[2];
+            // Handle export downloads (supports multiple markers)
+            const revenueDatasets = []; // collect for consolidated summary
+            for (const dlMatch of exportDlMatches) {
+                const exportFilename = dlMatch[1];
+                const exportExt = dlMatch[2];
 
                 try {
                     const exportResp = await fetch(API_URL, {
@@ -591,19 +594,22 @@ async function sendMessage(text) {
                         const exportData = await exportResp.json();
                         const exportContent = exportData.dados_exportados;
                         if (exportContent) {
-                            // Detect fill rate CSV → render fill rate dashboard
                             const isFillRate = isFillRateCsv(exportContent);
-                            // Detect revenue CSV → render revenue dashboard
                             const isRevenue = !isFillRate && isRevenueCsv(exportContent);
                             if (isFillRate) {
                                 renderFillRateDashboard(exportContent, exportFilename);
                             } else if (isRevenue) {
+                                // Collect for consolidated summary
+                                const label = exportFilename
+                                    .replace(/^export-[\dT\-Z]+-[a-f0-9]+\.csv$/, '')
+                                    .replace(/export-/, '') || exportFilename;
+                                revenueDatasets.push({ content: exportContent, filename: exportFilename, label });
                                 renderRevenueDashboardFromCsv(exportContent, exportFilename);
                             } else {
                                 const dlMsg = document.createElement('div');
                                 dlMsg.classList.add('message', 'message-bot');
                                 const btnId = 'dl-exp-' + Date.now();
-                                dlMsg.innerHTML = '<button id="' + btnId + '" style="padding:10px 20px;background:var(--user-bubble);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9rem;">📥 Baixar ' + exportExt.toUpperCase() + '</button>';
+                                dlMsg.innerHTML = '<button id="' + btnId + '" style="padding:10px 20px;background:var(--user-bubble);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9rem;">📥 Baixar ' + exportExt.toUpperCase() + ' — ' + exportFilename.substring(0, 40) + '</button>';
                                 chatMessages.appendChild(dlMsg);
                                 chatMessages.scrollTop = chatMessages.scrollHeight;
                                 document.getElementById(btnId).onclick = () => {
@@ -621,6 +627,11 @@ async function sendMessage(text) {
                 } catch (e) {
                     console.error('Export download error:', e);
                 }
+            }
+
+            // Consolidated revenue summary when multiple revenue CSVs
+            if (revenueDatasets.length > 1) {
+                renderRevenueConsolidatedSummary(revenueDatasets);
             }
         } else if (response.status === 400) {
             addMessage('Pergunta inválida. Verifique o conteúdo e tente novamente.', 'error');
@@ -1515,6 +1526,134 @@ function isRevenueCsv(content) {
     const lower = content.toLowerCase();
     return (lower.includes('revenue') || lower.includes('total_revenue')) &&
            (lower.includes('supply_tag') || lower.includes('supply tag') || lower.includes('impressions') || lower.includes('rpm'));
+}
+
+function renderRevenueConsolidatedSummary(datasets) {
+    // datasets: [{content, filename, label}, ...]
+    // Parse each CSV and compute per-dataset totals
+    const fmtUSD = v => '$' + (v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtNum = v => (v ?? 0).toLocaleString('pt-BR');
+
+    const summaries = datasets.map(ds => {
+        const rows = parseCsv(ds.content);
+        const totalRev = rows.reduce((s, r) => s + (parseFloat(r.revenue ?? r.total_revenue ?? 0) || 0), 0);
+        const totalImps = rows.reduce((s, r) => s + (parseFloat(r.impressions ?? r.total_impressions ?? 0) || 0), 0);
+        const rpmVals = rows.map(r => parseFloat(r.rpm ?? 0)).filter(v => v > 0);
+        const rpmMedio = rpmVals.length ? rpmVals.reduce((a, b) => a + b, 0) / rpmVals.length : 0;
+        // Extract a friendly label from filename: take the part after last dash group
+        const nameParts = ds.filename.replace('.csv', '').split('-');
+        const friendlyLabel = ds.label || nameParts.slice(-2).join('-');
+        return { label: friendlyLabel, revenue: totalRev, impressions: totalImps, rpm: rpmMedio, count: rows.length };
+    });
+
+    const grandTotal = summaries.reduce((s, d) => s + d.revenue, 0);
+    const grandImps = summaries.reduce((s, d) => s + d.impressions, 0);
+
+    const container = document.createElement('div');
+    container.classList.add('message', 'message-bot');
+    container.style.cssText = 'padding:0;border:none;background:transparent;max-width:95%;';
+
+    const chartId = 'consolidated-chart-' + Date.now();
+    const tableRows = summaries.map(d => {
+        const pct = grandTotal > 0 ? (d.revenue / grandTotal * 100).toFixed(1) : '0.0';
+        const barW = grandTotal > 0 ? Math.round(d.revenue / grandTotal * 100) : 0;
+        return `
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:8px 12px;font-size:0.8rem;color:var(--text-primary);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.label)}">${escapeHtml(d.label)}</td>
+            <td style="padding:8px 12px;font-size:0.85rem;font-weight:700;color:#3fb950;">${fmtUSD(d.revenue)}</td>
+            <td style="padding:8px 12px;font-size:0.78rem;color:var(--text-secondary);">${pct}%</td>
+            <td style="padding:8px 12px;font-size:0.78rem;color:#4f8cff;">${fmtUSD(d.rpm)}</td>
+            <td style="padding:8px 12px;font-size:0.75rem;color:var(--text-secondary);">${fmtNum(Math.round(d.impressions))}</td>
+            <td style="padding:8px 12px;">
+                <div style="background:var(--bg-tertiary);border-radius:3px;height:6px;width:100px;">
+                    <div style="background:#3fb950;height:6px;border-radius:3px;width:${barW}%;"></div>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+    <div style="background:var(--bg-secondary);border:2px solid #3fb95044;border-radius:12px;overflow:hidden;">
+        <div style="background:linear-gradient(135deg,#0d1f0d,#1a2e1a);padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div>
+                <div style="font-size:1rem;font-weight:700;color:#3fb950;">💰 Revenue Total Consolidado</div>
+                <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:3px;">${datasets.length} segmentos · ${fmtNum(grandImps)} impressões totais</div>
+            </div>
+            <div style="font-size:2rem;font-weight:800;color:#3fb950;">${fmtUSD(grandTotal)}</div>
+        </div>
+
+        <!-- Bar chart -->
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);">
+            <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">REVENUE POR SEGMENTO</div>
+            <div style="background:var(--bg-tertiary);border-radius:8px;padding:12px;border:1px solid var(--border);height:${Math.max(160, summaries.length * 36)}px;">
+                <canvas id="${chartId}"></canvas>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="background:var(--bg-tertiary);border-bottom:1px solid var(--border);">
+                        <th style="padding:8px 12px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Segmento</th>
+                        <th style="padding:8px 12px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Revenue</th>
+                        <th style="padding:8px 12px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">% Total</th>
+                        <th style="padding:8px 12px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">RPM Médio</th>
+                        <th style="padding:8px 12px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Impressões</th>
+                        <th style="padding:8px 12px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Share</th>
+                    </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+                <tfoot>
+                    <tr style="background:var(--bg-tertiary);border-top:2px solid var(--border);">
+                        <td style="padding:10px 12px;font-size:0.85rem;font-weight:700;color:var(--text-primary);">TOTAL</td>
+                        <td style="padding:10px 12px;font-size:0.9rem;font-weight:800;color:#3fb950;">${fmtUSD(grandTotal)}</td>
+                        <td style="padding:10px 12px;font-size:0.8rem;color:var(--text-secondary);">100%</td>
+                        <td colspan="3" style="padding:10px 12px;font-size:0.75rem;color:var(--text-secondary);">${fmtNum(Math.round(grandImps))} impressões</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>`;
+
+    chatMessages.appendChild(container);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    setTimeout(() => {
+        const canvas = document.getElementById(chartId);
+        if (!canvas || typeof Chart === 'undefined') return;
+        const colors = summaries.map((_, i) => `hsla(${(130 + i * 45) % 360}, 60%, 50%, 0.85)`);
+        new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: summaries.map(d => d.label.length > 20 ? d.label.substring(0, 20) + '…' : d.label),
+                datasets: [{
+                    label: 'Revenue (USD)',
+                    data: summaries.map(d => d.revenue),
+                    backgroundColor: colors,
+                    borderRadius: 4,
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => summaries[items[0].dataIndex]?.label || '',
+                            label: ctx => ' ' + fmtUSD(ctx.parsed.x),
+                        },
+                    },
+                },
+                scales: {
+                    x: { ticks: { color: '#999', font: { size: 10 }, callback: v => '$' + v.toFixed(0) }, grid: { color: '#2a2a2a' } },
+                    y: { ticks: { color: '#ccc', font: { size: 10 } }, grid: { display: false } },
+                },
+            },
+        });
+    }, 50);
 }
 
 function renderRevenueDashboardFromCsv(csvContent, filename) {
