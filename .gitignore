@@ -7,3 +7,23 @@ cdk.out/
 *.zip
 *.egg-info/
 .pytest_cache/
+
+# Vendor dependencies bundled for Lambda (not source code)
+lambdas/pipeline_ads/requests/
+lambdas/pipeline_ads/certifi/
+lambdas/pipeline_ads/charset_normalizer/
+lambdas/pipeline_ads/idna/
+lambdas/pipeline_ads/urllib3/
+lambdas/pipeline_ads_batch/requests/
+lambdas/pipeline_ads_batch/certifi/
+lambdas/pipeline_ads_batch/charset_normalizer/
+lambdas/pipeline_ads_batch/idna/
+lambdas/pipeline_ads_batch/urllib3/
+
+# Temp/generated files
+payload_reports.json
+tmp_query.json
+response_reports.json
+PIPELINE_ADS_FIXES.md
+test_pipeline_ads.py
+stacks/__pycache__/

@@ -132,9 +132,11 @@ SPRINGSERVE_COLUMNS = {
         "created_at", "updated_at",
     ],
     "report": SPRINGSERVE_COMMON_COLUMNS + [
-        "supply_tag_id", "supply_tag_name",
-        "fill_rate", "total_impressions", "total_revenue",
-        "total_cost", "cpm", "data_inicio", "data_fim",
+        "supply_tag_id", "supply_tag_name", "ad_position",
+        "requests", "opportunities", "impressions",
+        "fill_rate", "opp_fill_rate", "req_fill_rate",
+        "total_impressions", "total_revenue", "revenue",
+        "total_cost", "cpm", "rpm", "data_inicio", "data_fim",
     ],
     "delivery_modifier": SPRINGSERVE_COMMON_COLUMNS + [
         "modifier_id", "descricao", "ativo",
@@ -157,10 +159,11 @@ SPRINGSERVE_COLUMNS = {
 
 CORRELACAO_COLUMNS = [
     "channel_id", "servico", "tipo",
-    "mediatailor_name", "mediatailor_ad_server_url",
-    "supply_tag_id", "supply_tag_name",
+    "mediatailor_name", "supply_tag_name",
     "demand_tags_associadas",
-    "fill_rate_atual", "total_impressions_24h",
+    "requests", "opportunities",
+    "fill_rate_atual", "opp_fill_rate", "req_fill_rate",
+    "total_impressions_24h", "revenue", "rpm", "cpm",
 ]
 
 LOGS_DEFAULT_COLUMNS = [

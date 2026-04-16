@@ -1374,15 +1374,21 @@ def _resolve_mediatailor_config(
     """Resolve a fuzzy search term to a MediaTailor config."""
     search_lower = search_term.lower()
     matches = []
-    resp = mediatailor_client.list_playback_configurations(
-        MaxResults=100,
-    )
-    for cfg in resp.get("Items", []):
-        name = cfg.get("Name", "")
-        if search_lower in name.lower():
-            matches.append({
-                "nome": name,
-            })
+
+    # Paginate through all configurations (may exceed 100 with live_ + livh_ patterns)
+    params: dict[str, Any] = {"MaxResults": 100}
+    while True:
+        resp = mediatailor_client.list_playback_configurations(**params)
+        for cfg in resp.get("Items", []):
+            name = cfg.get("Name", "")
+            if search_lower in name.lower():
+                matches.append({
+                    "nome": name,
+                })
+        next_token = resp.get("NextToken")
+        if not next_token:
+            break
+        params["NextToken"] = next_token
 
     if len(matches) == 0:
         raise ValueError(

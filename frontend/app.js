@@ -432,7 +432,26 @@ async function sendMessage(text) {
                 if (depth !== 0) return null;
                 try {
                     const jsonStr = resposta.slice(jsonStart, i + 1);
-                    return [resposta.slice(idx, i + 2), jsonStr]; // [fullMatch, jsonStr]
+                    return [resposta.slice(idx, i + 2), jsonStr];
+                } catch { return null; }
+            })();
+
+            // Check for revenue data marker (from SpringServe report via agent)
+            const revenueMatch = (() => {
+                const tag = '[REVENUE_DATA:';
+                const idx = resposta.indexOf(tag);
+                if (idx === -1) return null;
+                const jsonStart = idx + tag.length;
+                let depth = 0, i = jsonStart;
+                while (i < resposta.length) {
+                    if (resposta[i] === '{') depth++;
+                    else if (resposta[i] === '}') { depth--; if (depth === 0) break; }
+                    i++;
+                }
+                if (depth !== 0) return null;
+                try {
+                    const jsonStr = resposta.slice(jsonStart, i + 1);
+                    return [resposta.slice(idx, i + 2), jsonStr];
                 } catch { return null; }
             })();
 
@@ -445,6 +464,7 @@ async function sendMessage(text) {
             if (exportDlMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_EXPORT:[^\]]+\]/, '').trim();
             if (chartMatch) cleanResposta = cleanResposta.replace(/\[CHART_DATA:\{[\s\S]*?\}\]/, '').trim();
             if (metricsMatch) cleanResposta = cleanResposta.replace(metricsMatch[0], '').trim();
+            if (revenueMatch) cleanResposta = cleanResposta.replace(revenueMatch[0], '').trim();
             if (csvMatch) cleanResposta = cleanResposta.replace(/\[DOWNLOAD_ANALYTICS_CSV:[^\]]+\]/, '').trim();
 
             // Display the clean text
@@ -471,6 +491,16 @@ async function sendMessage(text) {
                     renderMetricsCharts(metricsData);
                 } catch (e) {
                     console.warn('Failed to parse metrics data:', e.message);
+                }
+            }
+
+            // Render revenue dashboard if REVENUE_DATA marker present
+            if (revenueMatch) {
+                try {
+                    const revenueData = JSON.parse(revenueMatch[1]);
+                    renderRevenueDashboard(revenueData);
+                } catch (e) {
+                    console.warn('Failed to parse revenue data:', e.message);
                 }
             }
             // Render CSV download button if present
@@ -561,10 +591,14 @@ async function sendMessage(text) {
                         const exportData = await exportResp.json();
                         const exportContent = exportData.dados_exportados;
                         if (exportContent) {
-                            // Detect fill rate CSV → render dashboard instead of raw download
+                            // Detect fill rate CSV → render fill rate dashboard
                             const isFillRate = isFillRateCsv(exportContent);
+                            // Detect revenue CSV → render revenue dashboard
+                            const isRevenue = !isFillRate && isRevenueCsv(exportContent);
                             if (isFillRate) {
                                 renderFillRateDashboard(exportContent, exportFilename);
+                            } else if (isRevenue) {
+                                renderRevenueDashboardFromCsv(exportContent, exportFilename);
                             } else {
                                 const dlMsg = document.createElement('div');
                                 dlMsg.classList.add('message', 'message-bot');
@@ -1036,38 +1070,350 @@ function renderMetricsCharts(metricsData) {
     const metricas = metricsData.metricas;
     if (!metricas) return;
 
-    // Filter metrics that have time series data
     const chartsToRender = Object.entries(metricas).filter(
-        ([name, data]) => data.serie_temporal && data.serie_temporal.length > 0
+        ([, data]) => data.serie_temporal && data.serie_temporal.length > 0
     );
-
     if (chartsToRender.length === 0) return;
 
-    // Create a container for all charts
+    // Detect fill rate metrics and their severity
+    const fillRateEntry = chartsToRender.find(([name]) => name === 'Avail.FillRate');
+    const adsEntry      = chartsToRender.find(([name]) => name === 'AdDecisionServer.Ads');
+    const isFillRateCritical = fillRateEntry && (fillRateEntry[1].media ?? fillRateEntry[1].atual ?? 0) < 50;
+    const isFillRateWarning  = fillRateEntry && !isFillRateCritical && (fillRateEntry[1].media ?? fillRateEntry[1].atual ?? 100) < 80;
+
     const container = document.createElement('div');
     container.classList.add('message', 'message-bot');
-    container.style.padding = '12px';
+    container.style.cssText = 'padding:0;border:none;background:transparent;max-width:95%;';
 
-    const title = document.createElement('div');
-    title.style.cssText = 'font-weight:600;margin-bottom:12px;font-size:0.95rem;';
-    title.textContent = '📊 Gráficos de Métricas';
-    container.appendChild(title);
+    // ── Header card ──────────────────────────────────────────────────────────
+    const severidade = metricsData.severidade_geral || 'INFO';
+    const headerColor = severidade === 'ERROR' || severidade === 'CRITICAL' ? '#f85149'
+                      : severidade === 'WARNING' ? '#d29922' : '#3fb950';
+    const headerEmoji = severidade === 'ERROR' || severidade === 'CRITICAL' ? '🚨'
+                      : severidade === 'WARNING' ? '⚠️' : '✅';
+    const alertas = metricsData.alertas || [];
 
-    // Color palette
-    const colors = [
-        '#4f8cff', '#ff6b6b', '#51cf66', '#ffd43b',
-        '#cc5de8', '#20c997', '#ff922b', '#748ffc',
-    ];
+    let headerHtml = `
+    <div style="background:var(--bg-secondary);border:1px solid ${headerColor}44;border-radius:12px;overflow:hidden;margin-bottom:4px;">
+        <div style="background:linear-gradient(135deg,#161b22,#1c2333);padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div style="font-size:1rem;font-weight:700;color:var(--text-primary);">📊 Métricas em Tempo Real</div>
+            <div style="font-size:1rem;font-weight:800;color:${headerColor};">${headerEmoji} ${severidade}</div>
+        </div>`;
+
+    // Alert pills
+    if (alertas.length > 0) {
+        headerHtml += `<div style="padding:10px 18px;display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--border);">`;
+        alertas.forEach(a => {
+            const c = a.severidade === 'ERROR' || a.severidade === 'CRITICAL' ? '#f85149' : '#d29922';
+            headerHtml += `<span style="background:${c}22;border:1px solid ${c}55;border-radius:20px;padding:4px 12px;font-size:0.75rem;color:${c};font-weight:600;">${escapeHtml(a.metrica)}: ${a.valor}${a.metrica.includes('FillRate') ? '%' : ''}</span>`;
+        });
+        headerHtml += `</div>`;
+    }
+
+    // Fill rate critical banner
+    if (isFillRateCritical) {
+        const frVal = (fillRateEntry[1].media ?? fillRateEntry[1].atual ?? 0).toFixed(1);
+        const adsVal = adsEntry ? Math.round(adsEntry[1].media ?? 0) : null;
+        headerHtml += `
+        <div style="padding:14px 18px;background:#f8514910;border-bottom:1px solid #f8514933;">
+            <div style="font-size:0.85rem;font-weight:700;color:#f85149;margin-bottom:6px;">🚨 Fill Rate Crítico — ${frVal}%</div>
+            <div style="font-size:0.78rem;color:var(--text-secondary);line-height:1.6;">
+                O MediaTailor está recebendo decisões do ad server${adsVal !== null ? ` (média ${adsVal} ads/período)` : ''}, mas os avails <strong style="color:#f85149">não estão sendo preenchidos</strong>.<br>
+                Verifique: URL do ad server · configuração de avails · SSAI manifest · permissões de rede.
+            </div>
+        </div>`;
+    } else if (isFillRateWarning) {
+        const frVal = (fillRateEntry[1].media ?? fillRateEntry[1].atual ?? 0).toFixed(1);
+        headerHtml += `
+        <div style="padding:12px 18px;background:#d2992210;border-bottom:1px solid #d2992233;">
+            <div style="font-size:0.82rem;color:#d29922;">⚠️ Fill Rate abaixo de 80% — média ${frVal}%</div>
+        </div>`;
+    }
+
+    headerHtml += `</div>`;
+    container.innerHTML = headerHtml;
+    chatMessages.appendChild(container);
+
+    // ── Combined Fill Rate + Ads chart (dual axis) ───────────────────────────
+    if (fillRateEntry && adsEntry) {
+        const [, frData] = fillRateEntry;
+        const [, adsData] = adsEntry;
+
+        // Align series by timestamp
+        const frSeries  = frData.serie_temporal;
+        const adsSeries = adsData.serie_temporal;
+        const labels = frSeries.map(p => {
+            const d = new Date(p.timestamp);
+            return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        });
+        const frValues  = frSeries.map(p => p.value);
+        const adsValues = adsSeries.map(p => p.value);
+
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('message', 'message-bot');
+        wrapper.style.cssText = 'padding:0;border:none;background:transparent;max-width:95%;';
+
+        const chartId = 'chart-dual-' + Date.now();
+        wrapper.innerHTML = `
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+            <div style="padding:12px 18px;border-bottom:1px solid var(--border);font-size:0.8rem;font-weight:600;color:var(--text-secondary);">
+                FILL RATE vs ADS RECEBIDOS — últimas 24h
+            </div>
+            <div style="padding:12px;background:var(--bg-tertiary);height:260px;">
+                <canvas id="${chartId}"></canvas>
+            </div>
+            <div style="padding:8px 18px;display:flex;gap:16px;font-size:0.72rem;color:var(--text-secondary);">
+                <span><span style="display:inline-block;width:12px;height:3px;background:#f85149;border-radius:2px;vertical-align:middle;margin-right:4px;"></span>Fill Rate % (eixo esq.)</span>
+                <span><span style="display:inline-block;width:12px;height:3px;background:#4f8cff;border-radius:2px;vertical-align:middle;margin-right:4px;"></span>Ads recebidos (eixo dir.)</span>
+                <span><span style="display:inline-block;width:12px;height:2px;background:#d29922;border-radius:2px;vertical-align:middle;margin-right:4px;border-top:2px dashed #d29922;"></span>Limite 80%</span>
+            </div>
+        </div>`;
+        chatMessages.appendChild(wrapper);
+
+        setTimeout(() => {
+            const canvas = document.getElementById(chartId);
+            if (!canvas || typeof Chart === 'undefined') return;
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: 'Fill Rate (%)',
+                            data: frValues,
+                            borderColor: '#f85149',
+                            backgroundColor: '#f8514920',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 2,
+                            borderWidth: 2,
+                            yAxisID: 'yFill',
+                        },
+                        {
+                            label: 'Ads recebidos',
+                            data: adsValues,
+                            borderColor: '#4f8cff',
+                            backgroundColor: 'transparent',
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 2,
+                            borderWidth: 1.5,
+                            borderDash: [],
+                            yAxisID: 'yAds',
+                        },
+                        {
+                            // Reference line at 80%
+                            label: 'Limite 80%',
+                            data: labels.map(() => 80),
+                            borderColor: '#d29922',
+                            borderDash: [6, 4],
+                            borderWidth: 1.5,
+                            pointRadius: 0,
+                            fill: false,
+                            yAxisID: 'yFill',
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    if (ctx.dataset.label === 'Limite 80%') return null;
+                                    const v = ctx.parsed.y;
+                                    if (ctx.dataset.label === 'Fill Rate (%)') return ` Fill Rate: ${v.toFixed(1)}%`;
+                                    return ` Ads: ${Math.round(v)}`;
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#999', font: { size: 10 }, maxTicksLimit: 12 },
+                            grid: { color: '#2a2a2a' },
+                        },
+                        yFill: {
+                            type: 'linear',
+                            position: 'left',
+                            min: 0,
+                            max: 100,
+                            ticks: { color: '#f85149', font: { size: 10 }, callback: v => v + '%' },
+                            grid: { color: '#2a2a2a' },
+                            title: { display: true, text: 'Fill Rate %', color: '#f85149', font: { size: 10 } },
+                        },
+                        yAds: {
+                            type: 'linear',
+                            position: 'right',
+                            ticks: { color: '#4f8cff', font: { size: 10 } },
+                            grid: { display: false },
+                            title: { display: true, text: 'Ads', color: '#4f8cff', font: { size: 10 } },
+                        },
+                    },
+                },
+            });
+        }, 50);
+
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        // Skip individual charts for these two — already combined
+        const remaining = chartsToRender.filter(([n]) => n !== 'Avail.FillRate' && n !== 'AdDecisionServer.Ads');
+        if (remaining.length === 0) return;
+        renderIndividualMetricCharts(remaining);
+        return;
+    }
+
+    // ── Individual charts for all other metrics ───────────────────────────────
+    renderIndividualMetricCharts(chartsToRender);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function renderRevenueDashboard(data) {
+    if (!data || !data.labels || !data.values || data.labels.length === 0) return;
+
+    const total = data.total ?? data.values.reduce((a, b) => a + b, 0);
+    const rpmMedio = data.rpm_medio ?? 0;
+    const cpmMedio = data.cpm_medio ?? 0;
+    const impressionsTotal = data.impressions_total ?? 0;
+
+    const fmtUSD = v => '$' + (v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtNum = v => (v ?? 0).toLocaleString('pt-BR');
+
+    // Shorten label: last segment after space or underscore
+    const shortLabel = l => {
+        if (!l || l.length <= 22) return l;
+        const parts = l.split(/[\s_]+/);
+        return parts.length > 2 ? parts.slice(-2).join(' ') : l.substring(0, 22);
+    };
+
+    const container = document.createElement('div');
+    container.classList.add('message', 'message-bot');
+    container.style.cssText = 'padding:0;border:none;background:transparent;max-width:95%;';
+
+    // Color each bar by revenue rank
+    const maxVal = Math.max(...data.values);
+    const barColors = data.values.map(v => {
+        const ratio = maxVal > 0 ? v / maxVal : 0;
+        if (ratio >= 0.7) return '#3fb950';
+        if (ratio >= 0.3) return '#4f8cff';
+        return '#748ffc';
+    });
+
+    const chartId = 'revenue-chart-' + Date.now();
+    const h = Math.max(260, data.labels.length * 30);
+
+    container.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#0d1f0d,#1a2e1a);padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+            <div>
+                <div style="font-size:1rem;font-weight:700;color:#3fb950;">💰 Revenue SpringServe</div>
+                <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:3px;">${data.labels.length} supply tags</div>
+            </div>
+            <div style="font-size:1.8rem;font-weight:800;color:#3fb950;">${fmtUSD(total)}</div>
+        </div>
+
+        <!-- KPI cards -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);">
+            <div style="background:var(--bg-secondary);padding:14px;text-align:center;">
+                <div style="font-size:1.1rem;font-weight:700;color:#3fb950;">${fmtUSD(total)}</div>
+                <div style="font-size:0.68rem;color:var(--text-secondary);margin-top:3px;">Revenue Total</div>
+            </div>
+            <div style="background:var(--bg-secondary);padding:14px;text-align:center;">
+                <div style="font-size:1.1rem;font-weight:700;color:#4f8cff;">${fmtUSD(rpmMedio)}</div>
+                <div style="font-size:0.68rem;color:var(--text-secondary);margin-top:3px;">RPM Médio</div>
+            </div>
+            <div style="background:var(--bg-secondary);padding:14px;text-align:center;">
+                <div style="font-size:1.1rem;font-weight:700;color:#ffd43b;">${fmtNum(impressionsTotal)}</div>
+                <div style="font-size:0.68rem;color:var(--text-secondary);margin-top:3px;">Impressões</div>
+            </div>
+        </div>
+
+        <!-- Bar chart -->
+        <div style="padding:16px 20px;border-top:1px solid var(--border);">
+            <div style="font-size:0.72rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">REVENUE POR SUPPLY TAG (USD)</div>
+            <div style="background:var(--bg-tertiary);border-radius:8px;padding:12px;border:1px solid var(--border);height:${h}px;">
+                <canvas id="${chartId}"></canvas>
+            </div>
+        </div>
+    </div>`;
+
+    chatMessages.appendChild(container);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    setTimeout(() => {
+        const canvas = document.getElementById(chartId);
+        if (!canvas || typeof Chart === 'undefined') return;
+        new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels: data.labels.map(shortLabel),
+                datasets: [{
+                    label: 'Revenue (USD)',
+                    data: data.values,
+                    backgroundColor: barColors,
+                    borderColor: barColors.map(c => c),
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => data.labels[items[0].dataIndex] || '',
+                            label: ctx => ' ' + fmtUSD(ctx.parsed.x),
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#999', font: { size: 10 }, callback: v => '$' + v.toFixed(2) },
+                        grid: { color: '#2a2a2a' },
+                    },
+                    y: {
+                        ticks: { color: '#ccc', font: { size: 10 }, maxRotation: 0 },
+                        grid: { display: false },
+                    },
+                },
+            },
+        });
+    }, 50);
+}
+
+function renderIndividualMetricCharts(chartsToRender) {
+    const colors = ['#4f8cff', '#ff6b6b', '#51cf66', '#ffd43b', '#cc5de8', '#20c997', '#ff922b', '#748ffc'];
 
     chartsToRender.forEach(([metricName, data], idx) => {
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'margin-bottom:16px;background:var(--bg-tertiary);border-radius:8px;padding:12px;border:1px solid var(--border);';
+        wrapper.classList.add('message', 'message-bot');
+        wrapper.style.cssText = 'padding:0;border:none;background:transparent;max-width:95%;';
 
-        const canvas = document.createElement('canvas');
-        canvas.id = 'chart-' + Date.now() + '-' + idx;
-        canvas.style.cssText = 'width:100%;max-height:200px;';
-        wrapper.appendChild(canvas);
-        container.appendChild(wrapper);
+        const chartId = 'chart-' + Date.now() + '-' + idx;
+        const color = colors[idx % colors.length];
+        const isFill = metricName.includes('FillRate');
+        const unit = isFill ? '%' : (data.unidade || '');
+
+        wrapper.innerHTML = `
+        <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+            <div style="padding:10px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);">${escapeHtml(metricName)}</span>
+                <span style="font-size:0.75rem;color:var(--text-secondary);">
+                    avg: <strong style="color:var(--text-primary);">${(data.media ?? 0).toFixed(1)}${unit}</strong>
+                    · max: <strong style="color:var(--text-primary);">${(data.max ?? 0).toFixed(1)}${unit}</strong>
+                </span>
+            </div>
+            <div style="padding:12px;background:var(--bg-tertiary);height:180px;">
+                <canvas id="${chartId}"></canvas>
+            </div>
+        </div>`;
+        chatMessages.appendChild(wrapper);
 
         const series = data.serie_temporal;
         const labels = series.map(p => {
@@ -1076,48 +1422,55 @@ function renderMetricsCharts(metricsData) {
         });
         const values = series.map(p => p.value);
 
-        const color = colors[idx % colors.length];
-
         setTimeout(() => {
+            const canvas = document.getElementById(chartId);
+            if (!canvas || typeof Chart === 'undefined') return;
+            const datasets = [{
+                label: metricName,
+                data: values,
+                borderColor: color,
+                backgroundColor: color + '20',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 2,
+                borderWidth: 2,
+            }];
+            if (isFill) {
+                datasets.push({
+                    label: 'Limite 80%',
+                    data: labels.map(() => 80),
+                    borderColor: '#d29922',
+                    borderDash: [6, 4],
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    fill: false,
+                });
+            }
             new Chart(canvas, {
                 type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: metricName + ' (' + (data.unidade || '') + ')',
-                        data: values,
-                        borderColor: color,
-                        backgroundColor: color + '20',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: 2,
-                        borderWidth: 2,
-                    }],
-                },
+                data: { labels, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            labels: { color: '#ccc', font: { size: 11 } },
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}${unit}` },
                         },
                     },
                     scales: {
-                        x: {
-                            ticks: { color: '#999', font: { size: 10 }, maxTicksLimit: 12 },
-                            grid: { color: '#333' },
-                        },
+                        x: { ticks: { color: '#999', font: { size: 10 }, maxTicksLimit: 12 }, grid: { color: '#2a2a2a' } },
                         y: {
-                            ticks: { color: '#999', font: { size: 10 } },
-                            grid: { color: '#333' },
+                            min: isFill ? 0 : undefined,
+                            max: isFill ? 100 : undefined,
+                            ticks: { color: '#999', font: { size: 10 }, callback: v => v + (unit ? unit : '') },
+                            grid: { color: '#2a2a2a' },
                         },
                     },
                 },
             });
-        }, 50);
+        }, 50 + idx * 20);
     });
-
-    chatMessages.appendChild(container);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -1156,6 +1509,134 @@ function isFillRateCsv(content) {
     return (lower.includes('fill_rate') || lower.includes('fill rate')) &&
            (lower.includes('canal') || lower.includes('channel')) &&
            lower.includes('timestamp');
+}
+
+function isRevenueCsv(content) {
+    const lower = content.toLowerCase();
+    return (lower.includes('revenue') || lower.includes('total_revenue')) &&
+           (lower.includes('supply_tag') || lower.includes('supply tag') || lower.includes('impressions') || lower.includes('rpm'));
+}
+
+function renderRevenueDashboardFromCsv(csvContent, filename) {
+    const rows = parseCsv(csvContent);
+    if (!rows.length) return;
+
+    // Aggregate by supply_tag_name (sum revenue, impressions; avg rpm, cpm)
+    const byTag = {};
+    rows.forEach(r => {
+        const name = r.supply_tag_name || r.nome || r.channel_id || '';
+        if (!name) return;
+        const rev = parseFloat(r.revenue ?? r.total_revenue ?? 0) || 0;
+        const imps = parseFloat(r.impressions ?? r.total_impressions ?? 0) || 0;
+        const rpm = parseFloat(r.rpm ?? 0) || 0;
+        const cpm = parseFloat(r.cpm ?? 0) || 0;
+        if (!byTag[name]) byTag[name] = { revenue: 0, impressions: 0, rpm_sum: 0, cpm_sum: 0, count: 0 };
+        byTag[name].revenue += rev;
+        byTag[name].impressions += imps;
+        byTag[name].rpm_sum += rpm;
+        byTag[name].cpm_sum += cpm;
+        byTag[name].count++;
+    });
+
+    // Sort by revenue desc, take top 20
+    const sorted = Object.entries(byTag)
+        .map(([name, d]) => ({
+            name,
+            revenue: d.revenue,
+            impressions: d.impressions,
+            rpm: d.count > 0 ? d.rpm_sum / d.count : 0,
+            cpm: d.count > 0 ? d.cpm_sum / d.count : 0,
+        }))
+        .filter(d => d.revenue > 0)
+        .sort((a, b) => b.revenue - a.revenue);
+
+    if (!sorted.length) {
+        // No revenue data — just show download button
+        const dlMsg = document.createElement('div');
+        dlMsg.classList.add('message', 'message-bot');
+        const btnId = 'dl-rev-' + Date.now();
+        dlMsg.innerHTML = `<button id="${btnId}" style="padding:10px 20px;background:var(--user-bubble);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9rem;">📥 Baixar CSV (sem dados de revenue)</button>`;
+        chatMessages.appendChild(dlMsg);
+        document.getElementById(btnId).onclick = () => {
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+        };
+        return;
+    }
+
+    const top = sorted.slice(0, 20);
+    const totalRevenue = sorted.reduce((s, d) => s + d.revenue, 0);
+    const totalImpressions = sorted.reduce((s, d) => s + d.impressions, 0);
+    const rpmMedio = sorted.filter(d => d.rpm > 0).reduce((s, d, _, a) => s + d.rpm / a.length, 0);
+    const cpmMedio = sorted.filter(d => d.cpm > 0).reduce((s, d, _, a) => s + d.cpm / a.length, 0);
+
+    const revenueData = {
+        labels: top.map(d => d.name),
+        values: top.map(d => d.revenue),
+        total: totalRevenue,
+        rpm_medio: rpmMedio,
+        cpm_medio: cpmMedio,
+        impressions_total: totalImpressions,
+    };
+
+    // Render the visual dashboard
+    renderRevenueDashboard(revenueData);
+
+    // Also render a summary table for top 10
+    const fmtUSD = v => '$' + (v ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtNum = v => (v ?? 0).toLocaleString('pt-BR');
+
+    const tableContainer = document.createElement('div');
+    tableContainer.classList.add('message', 'message-bot');
+    tableContainer.style.cssText = 'padding:0;border:none;background:transparent;max-width:95%;';
+
+    const dlBtnId = 'dl-rev-csv-' + Date.now();
+    const tableRows = top.slice(0, 10).map((d, i) => `
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:7px 10px;color:var(--text-secondary);font-size:0.75rem;">${i + 1}</td>
+            <td style="padding:7px 10px;font-size:0.78rem;color:var(--text-primary);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</td>
+            <td style="padding:7px 10px;font-size:0.82rem;font-weight:700;color:#3fb950;">${fmtUSD(d.revenue)}</td>
+            <td style="padding:7px 10px;font-size:0.78rem;color:#4f8cff;">${fmtUSD(d.rpm)}</td>
+            <td style="padding:7px 10px;font-size:0.78rem;color:var(--text-secondary);">${fmtNum(Math.round(d.impressions))}</td>
+        </tr>`).join('');
+
+    tableContainer.innerHTML = `
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:12px;overflow:hidden;">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);">TOP 10 POR REVENUE · ${sorted.length} supply tags no total</span>
+            <button id="${dlBtnId}" style="padding:6px 14px;background:var(--user-bubble);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;">📥 CSV completo</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border);background:var(--bg-tertiary);">
+                        <th style="padding:8px 10px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">#</th>
+                        <th style="padding:8px 10px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Supply Tag</th>
+                        <th style="padding:8px 10px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Revenue</th>
+                        <th style="padding:8px 10px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">RPM</th>
+                        <th style="padding:8px 10px;text-align:left;font-size:0.72rem;color:var(--text-secondary);font-weight:600;">Impressões</th>
+                    </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+        </div>
+    </div>`;
+
+    chatMessages.appendChild(tableContainer);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Wire download button
+    setTimeout(() => {
+        const btn = document.getElementById(dlBtnId);
+        if (btn) btn.onclick = () => {
+            const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+            URL.revokeObjectURL(url);
+        };
+    }, 100);
 }
 
 function extractFillRateFromDesc(desc) {

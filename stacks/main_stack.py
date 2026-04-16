@@ -442,56 +442,6 @@ class MainStack(Stack):
         )
 
         # ---------------------------------------------------------------
-        # 7b. Pipeline Ads Lambda + EventBridge + Secrets Manager
-        # ---------------------------------------------------------------
-
-        # Secret para credenciais SpringServe
-        springserve_secret = secretsmanager.Secret(
-            self, "SpringServeCredentials",
-            secret_name="springserve/api-credentials",
-            description="Credenciais da API SpringServe (email + password)",
-            generate_secret_string=secretsmanager.SecretStringGenerator(
-                secret_string_template='{"email":"placeholder@empresa.com"}',
-                generate_string_key="password",
-            ),
-        )
-
-        pipeline_ads_fn = _lambda.Function(
-            self, "PipelineAdsFunction",
-            runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="handler.handler",
-            code=_lambda.Code.from_asset("lambdas/pipeline_ads"),
-            timeout=Duration.minutes(15),
-            memory_size=512,
-            environment={
-                "KB_ADS_BUCKET": kb_config_bucket.bucket_name,
-                "KB_ADS_PREFIX": "kb-ads/",
-                "SPRINGSERVE_SECRET_NAME": springserve_secret.secret_name,
-                "SPRINGSERVE_BASE_URL": "https://video.springserve.com",
-                "CONFIGS_TABLE_NAME": configs_table.table_name,
-                "MEDIATAILOR_REGION": "us-east-1",
-                "WORKERS": "5",
-            },
-        )
-
-        springserve_secret.grant_read(pipeline_ads_fn)
-        kb_config_bucket.grant_put(pipeline_ads_fn)
-        configs_table.grant_write_data(pipeline_ads_fn)
-        pipeline_ads_fn.add_to_role_policy(iam.PolicyStatement(
-            actions=[
-                "mediatailor:ListPlaybackConfigurations",
-                "mediatailor:GetPlaybackConfiguration",
-            ],
-            resources=["*"],
-        ))
-
-        ads_schedule = events.Rule(
-            self, "PipelineAdsSchedule",
-            schedule=events.Schedule.rate(Duration.hours(6)),
-        )
-        ads_schedule.add_target(targets.LambdaFunction(pipeline_ads_fn))
-
-        # ---------------------------------------------------------------
         # 8. Proactive Alerts — SNS Topic + Permissions
         # ---------------------------------------------------------------
         alerts_topic = sns.Topic(
@@ -535,3 +485,9 @@ class MainStack(Stack):
             self, "LogsTableName",
             value=logs_table.table_name,
         )
+
+        # ---------------------------------------------------------------
+        # Properties for other stacks
+        # ---------------------------------------------------------------
+        self.kb_config_bucket = kb_config_bucket
+        self.configs_table = configs_table

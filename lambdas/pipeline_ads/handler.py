@@ -107,6 +107,7 @@ def _paginate_springserve(
     auth: SpringServeAuth,
     path: str,
     params: dict | None = None,
+    timeout: tuple | None = None,
 ) -> list:
     """Generic paginator for SpringServe API endpoints.
 
@@ -123,17 +124,29 @@ def _paginate_springserve(
 
     while True:
         params["page"] = page
-        resp = auth.request("GET", path, params=params)
-        data = resp.json()
-        all_results.extend(data.get("results", []))
+        logger.info(f"Fetching {path} page {page} (per={MAX_PER_PAGE})")
+        
+        try:
+            resp = auth.request("GET", path, params=params, timeout=timeout)
+            data = resp.json()
+            results = data.get("results", [])
+            all_results.extend(results)
+            
+            logger.info(f"Page {page}: {len(results)} items, total so far: {len(all_results)}")
 
-        current_page = data.get("current_page", page)
-        total_pages = data.get("total_pages", 1)
+            current_page = data.get("current_page", page)
+            total_pages = data.get("total_pages", 1)
 
-        if current_page >= total_pages:
+            if current_page >= total_pages:
+                break
+            page += 1
+            
+        except Exception as exc:
+            logger.error(f"Error fetching {path} page {page}: {exc}")
+            # Continue with what we have so far
             break
-        page += 1
 
+    logger.info(f"Pagination complete for {path}: {len(all_results)} total items")
     return all_results
 
 
@@ -182,7 +195,19 @@ def handler(event, context):
             creds["password"],
         )
         auth.authenticate()
-        _process_reports(auth, s3, ddb, results)
+        # Load supply tag names from S3 for enrichment
+        stag_name_by_id = {}
+        try:
+            supply_tags_s3 = _load_supply_tags_from_s3(s3)
+            stag_name_by_id = {
+                str(st.get("supply_tag_id", "")): st.get("nome", "")
+                for st in supply_tags_s3
+                if st.get("supply_tag_id") and st.get("nome")
+            }
+            logger.info("reports_only: %d supply tag names carregados do S3", len(stag_name_by_id))
+        except Exception as exc:
+            logger.warning("reports_only: falha ao carregar supply tags do S3: %s", exc)
+        _process_reports(auth, s3, ddb, results, stag_name_by_id)
         total_stored = results["stored"]
         total_errors = len(results["errors"])
         logger.info(
@@ -198,8 +223,35 @@ def handler(event, context):
             },
         }
 
-    # --- Correlations-only mode ---
-    if mode == "correlations_only":
+    # --- Priorities-only mode: update existing supply tags with priorities ---
+    if mode == "priorities_only":
+        logger.info("Modo priorities_only: atualizando supply tags com priorities")
+        sm = boto3.client("secretsmanager", config=BOTO_CONFIG)
+        secret_resp = sm.get_secret_value(
+            SecretId=SPRINGSERVE_SECRET_NAME
+        )
+        creds = json.loads(secret_resp["SecretString"])
+        auth = SpringServeAuth(
+            SPRINGSERVE_BASE_URL,
+            creds["email"],
+            creds["password"],
+        )
+        auth.authenticate()
+        _process_priorities_only(auth, s3, ddb, results)
+        total_stored = results["stored"]
+        total_errors = len(results["errors"])
+        logger.info(
+            "priorities_only finalizado: stored=%d, errors=%d",
+            total_stored, total_errors,
+        )
+        return {
+            "statusCode": 200,
+            "body": {
+                "mode": "priorities_only",
+                "total_stored": total_stored,
+                "total_errors": total_errors,
+            },
+        }
         logger.info("Modo correlations_only: lendo supply tags do S3")
         supply_tags = _load_supply_tags_from_s3(s3)
         logger.info("Supply tags carregadas do S3: %d", len(supply_tags))
@@ -255,14 +307,22 @@ def handler(event, context):
         "skipped_validation": 0,
     }
 
-    # --- Phase 1: supply_tags MUST complete first ---
-    # (correlations depend on supply_tags data)
-    supply_tags = _process_supply_tags(auth, s3, ddb, results)
+    # --- Phase 1: supply_tags via SQS batch processing ---
+    # Sends tag IDs to SQS; Pipeline_Ads_Batch fetches priorities
+    # only for preroll/midroll/postroll tags (top 5 each)
+    supply_tags = _queue_supply_tags_for_batch_processing(auth, s3, ddb, results)
 
     # --- Phase 2: remaining collectors in parallel ---
+    # Build supply tag name lookup for report enrichment
+    stag_name_by_id = {
+        str(st.get("supply_tag_id", "")): st.get("nome", "")
+        for st in supply_tags
+        if st.get("supply_tag_id") and st.get("nome")
+    }
+
     parallel_fns = [
         ("demand_tags", _process_demand_tags),
-        ("reports", _process_reports),
+        ("reports", lambda a, s, d, r: _process_reports(a, s, d, r, stag_name_by_id)),
         ("scheduled_reports", _process_scheduled_reports),
         ("delivery_modifiers", _process_delivery_modifiers),
         ("creatives", _process_creatives),
@@ -590,11 +650,180 @@ def _load_supply_tags_from_s3(s3):
     return supply_tags
 
 
-def _process_supply_tags(auth, s3, ddb, results):
+def _process_supply_tags_inline(auth, s3, ddb, results):
+    """Process supply tags inline WITHOUT priorities for speed.
+    
+    Skips demand_tag_priorities to avoid rate limits.
+    Focus on getting basic supply tag data with ad_position categorization.
+    """
+    logger.info("Coletando supply tags inline (SEM priorities - modo rápido)")
+    normalized_tags = []
+    
+    try:
+        # Use longer timeout for supply tags collection
+        raw_tags = _paginate_springserve(
+            auth, SPRINGSERVE_ENDPOINTS["supply_tags"], timeout=(15, 120)
+        )
+    except Exception as exc:
+        _err(results, "supply_tags", str(exc))
+        return normalized_tags
+
+    logger.info("Supply tags: %d encontradas, processando SEM priorities", len(raw_tags))
+
+    # Process all supply tags WITHOUT fetching priorities (fast mode)
+    for index, raw in enumerate(raw_tags):
+        try:
+            # Normalize without priorities (empty list)
+            config = normalize_supply_tag(raw, demand_priorities=[])
+            _dual_write(s3, ddb, config, results)
+            normalized_tags.append(config)
+            
+            # Log progress every 500 items (faster processing)
+            if (index + 1) % 500 == 0:
+                logger.info(f"Supply tags processadas: {index + 1}/{len(raw_tags)}")
+                
+        except Exception as exc:
+            _err(
+                results,
+                f"supply_tag_{raw.get('id', '?')}",
+                str(exc),
+            )
+
+    logger.info("Supply tags: %d processadas com sucesso (SEM priorities)", len(normalized_tags))
+    return normalized_tags
+
+
+def _process_priorities_only(auth, s3, ddb, results):
+    """Update existing supply tags with demand_tag_priorities.
+    
+    Loads supply tags from S3, fetches priorities, and updates them.
+    """
+    logger.info("Carregando supply tags existentes do S3")
+    supply_tags = _load_supply_tags_from_s3(s3)
+    logger.info(f"Supply tags carregadas: {len(supply_tags)}")
+    
+    if not supply_tags:
+        logger.warning("Nenhuma supply tag encontrada no S3")
+        return
+    
+    updated = 0
+    for index, supply_tag in enumerate(supply_tags):
+        tag_id = supply_tag.get("supply_tag_id", "")
+        if not tag_id:
+            continue
+            
+        try:
+            # Add delay every 5 requests to be very conservative
+            if index > 0 and index % 5 == 0:
+                import time
+                time.sleep(3)  # 3 second delay every 5 requests
+                
+            prio_path = (
+                f"{SPRINGSERVE_ENDPOINTS['supply_tags']}"
+                f"/{tag_id}/demand_tag_priorities"
+            )
+            prio_resp = auth.request("GET", prio_path, timeout=(15, 60))
+            priorities = prio_resp.json()
+            if isinstance(priorities, dict):
+                priorities = priorities.get("results", [])
+                
+            # Update supply tag with priorities
+            demand_names = [
+                str(d.get("demand_tag_name", d.get("name", "")))
+                for d in priorities
+            ]
+            demand_ids = [
+                str(d.get("demand_tag_id", d.get("id", "")))
+                for d in priorities
+            ]
+            
+            supply_tag["demand_tag_count"] = len(priorities)
+            supply_tag["demand_tags"] = ", ".join(demand_names) if demand_names else ""
+            supply_tag["demand_tag_ids"] = ", ".join(demand_ids) if demand_ids else ""
+            
+            # Store updated supply tag
+            _dual_write(s3, ddb, supply_tag, results)
+            updated += 1
+            
+            # Log progress every 50 items
+            if (index + 1) % 50 == 0:
+                logger.info(f"Priorities atualizadas: {index + 1}/{len(supply_tags)}")
+                
+        except Exception as exc:
+            if "429" in str(exc):
+                logger.warning(f"Rate limited on supply_tag {tag_id}, skipping")
+                import time
+                time.sleep(10)  # Longer delay on rate limit
+            else:
+                logger.warning(f"Failed to update priorities for supply_tag {tag_id}: {exc}")
+    
+    logger.info(f"Priorities atualizadas: {updated} supply tags")
+
+
+def _queue_supply_tags_for_batch_processing(auth, s3, ddb, results):
+    """Queue supply tags for batch processing via SQS.
+
+    Fetches the list of supply tags (without priorities) and sends
+    them in batches of 100 to SQS for parallel processing by
+    separate Lambda invocations. Returns empty list since
+    supply tags will be processed asynchronously.
+    """
+    logger.info("Coletando supply tags para processamento em batch")
+    try:
+        raw_tags = _paginate_springserve(
+            auth, SPRINGSERVE_ENDPOINTS["supply_tags"]
+        )
+    except Exception as exc:
+        _err(results, "supply_tags", str(exc))
+        return []
+
+    logger.info("Supply tags: %d encontradas, enviando para SQS em batches", len(raw_tags))
+
+    # Send to SQS in batches of 20 (smaller to fit SQS 1MB limit)
+    sqs = boto3.client("sqs", config=BOTO_CONFIG)
+    queue_url = os.environ.get("SUPPLY_TAGS_QUEUE_URL", "")
+    
+    if not queue_url:
+        logger.error("SUPPLY_TAGS_QUEUE_URL não configurada, não é possível processar supply tags")
+        return []
+
+    batch_size = 20  # Reduced from 100 to fit SQS 1MB limit
+    batches_sent = 0
+    
+    for i in range(0, len(raw_tags), batch_size):
+        batch = raw_tags[i:i + batch_size]
+        # Send only essential fields to reduce message size
+        compact_batch = []
+        for tag in batch:
+            compact_batch.append({
+                "id": tag.get("id"),
+                "name": tag.get("name", ""),
+                "is_active": tag.get("is_active"),
+                "account_id": tag.get("account_id"),
+                "created_at": tag.get("created_at", ""),
+                "updated_at": tag.get("updated_at", ""),
+            })
+        
+        try:
+            sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=json.dumps({
+                    "batch_id": f"batch_{i//batch_size + 1}",
+                    "supply_tags": compact_batch,
+                    "total_batches": (len(raw_tags) + batch_size - 1) // batch_size,
+                }),
+            )
+            batches_sent += 1
+        except Exception as exc:
+            logger.error("Falha ao enviar batch %d para SQS: %s", i//batch_size + 1, exc)
+            _err(results, f"sqs_batch_{i//batch_size + 1}", str(exc))
+
+    logger.info("Supply tags: %d batches enviados para SQS", batches_sent)
+    return []  # Empty since processing is async
     """Collect, normalize and store all supply tags.
 
     For each supply tag, also fetches demand_tag_priorities
-    in parallel using ThreadPoolExecutor for speed.
+    in parallel using ThreadPoolExecutor with aggressive timeout.
     Returns the list of normalized supply tags for correlation.
 
     Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5
@@ -628,8 +857,9 @@ def _process_supply_tags(auth, s3, ddb, results):
                 "%s: %s", tag_id, exc,
             )
             priorities = []
-        return normalize_supply_tag(raw, priorities)
+        return normalize_supply_tag(raw, demand_priorities=priorities)
 
+    # Reduced workers to 3 to respect SpringServe rate limits
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {
             pool.submit(_fetch_and_normalize, raw): raw
@@ -682,24 +912,35 @@ def _process_demand_tags(auth, s3, ddb, results):
     logger.info("Demand tags: %d coletadas", len(raw_tags))
 
 
-def _process_reports(auth, s3, ddb, results):
+def _process_reports(auth, s3, ddb, results, stag_name_by_id=None):
     """Generate and store yesterday's report metrics.
 
-    Uses POST /api/v1/reports with synchronous execution.
+    Requests all metrics visible in the SpringServe UI:
+    Requests, Opps, Imps, Opp Fill %, Req Fill %,
+    Pod Time Req Fill %, RPM, Rev.
+
+    stag_name_by_id: optional dict {supply_tag_id: nome} for enrichment.
 
     Validates: Requirements 4.1, 4.2, 4.3, 4.4
     """
+    stag_name_by_id = stag_name_by_id or {}
     logger.info("Gerando relatórios de métricas")
     report_body = {
         "async": False,
         "date_range": "today",
         "dimensions": ["supply_tag_id"],
         "metrics": [
+            "requests",
+            "opportunities",
             "impressions",
+            "fill_rate",
+            "opp_fill_rate",
+            "req_fill_rate",
+            "pod_time_req_fill_rate",
             "revenue",
             "total_cost",
             "cpm",
-            "fill_rate",
+            "rpm",
         ],
         "interval": "Cumulative",
         "timezone": "Etc/UTC",
@@ -733,6 +974,14 @@ def _process_reports(auth, s3, ddb, results):
 
     for raw in rows:
         try:
+            # Enrich supply_tag_name from in-memory lookup if API didn't return it
+            sid = str(raw.get("supply_tag_id", ""))
+            if sid and stag_name_by_id.get(sid):
+                raw.setdefault("supply_tag_name", stag_name_by_id[sid])
+                # Override if API returned empty or numeric-only name
+                api_name = raw.get("supply_tag_name", "")
+                if not api_name or api_name == sid or api_name.lstrip("0123456789") == "":
+                    raw["supply_tag_name"] = stag_name_by_id[sid]
             config = normalize_report(raw)
             _dual_write(s3, ddb, config, results)
         except Exception as exc:
@@ -779,6 +1028,8 @@ def _process_scheduled_reports(auth, s3, ddb, results):
 def _process_delivery_modifiers(auth, s3, ddb, results):
     """Collect, normalize and store delivery modifiers.
 
+    Handles 403 Forbidden as warning (insufficient permissions).
+
     Validates: Requirements 5.1, 5.4, 5.5
     """
     logger.info("Coletando delivery modifiers")
@@ -788,6 +1039,12 @@ def _process_delivery_modifiers(auth, s3, ddb, results):
             SPRINGSERVE_ENDPOINTS["delivery_modifiers"],
         )
     except Exception as exc:
+        # 403 Forbidden is common for delivery_modifiers
+        if "403" in str(exc) or "Forbidden" in str(exc):
+            logger.warning(
+                "delivery_modifiers: 403 Forbidden (sem permissão), pulando"
+            )
+            return
         _err(results, "delivery_modifiers", str(exc))
         return
 
