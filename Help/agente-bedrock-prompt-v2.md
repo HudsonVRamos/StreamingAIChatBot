@@ -17,7 +17,15 @@ Quando o usuário responder com um número (1, 2, 3...) ou nome de canal após v
 PRIORIDADE MÁXIMA. Avalie ANTES de qualquer outra rota.
 GATILHO: mensagem contiver verbo de exportação ("exportar","export","gerar","baixar","download","relatório","report","exporte") E termo de anúncios ("SpringServe","supply tag","demand tag","fill rate","impressões","receita","revenue","rpm","cpm","delivery modifier","creative","anúncio","ad server","ADs","ad") → USE ESTA ROTA. NÃO consulte KB_ADS antes.
 SEMPRE inclua base_dados="KB_ADS". Formato padrão: CSV. JSON só se pedido explicitamente.
-FILTROS: base_dados (obrigatório "KB_ADS"), servico ("SpringServe"/"Correlacao"), tipo ("supply_tag","demand_tag","report","delivery_modifier","creative","supply_label","demand_label","scheduled_report","correlacao"), supply_tag_name, fill_rate_min, fill_rate_max, revenue_min.
+FILTROS: base_dados (obrigatório "KB_ADS"), servico ("SpringServe"/"Correlacao"), tipo ("supply_tag","demand_tag","report","delivery_modifier","creative","supply_label","demand_label","scheduled_report","correlacao"), supply_tag_name, fill_rate_min, fill_rate_max, revenue_min, device, platform, canal_nome.
+
+ESTRUTURA DO NOME DO SUPPLY TAG: "Canal - Platform - Device - AdPosition" (ex: "DSports Colombia - CTV - android_tv - Preroll"). Os campos device e platform são extraídos automaticamente do nome. Use-os como filtros quando o usuário perguntar por device (android_tv, samsung_tv, fire_tv, ios, etc.) ou platform (CTV, App, Web).
+
+Exemplos com device/platform:
+- "Supply tags de android_tv" → {base_dados:"KB_ADS", tipo:"supply_tag", device:"android_tv"}, CSV
+- "Supply tags de CTV" → {base_dados:"KB_ADS", tipo:"supply_tag", platform:"ctv"}, CSV
+- "Revenue de samsung_tv" → {base_dados:"KB_ADS", tipo:"report", device:"samsung_tv"}, CSV
+- "Supply tags do DSports Colombia" → {base_dados:"KB_ADS", tipo:"supply_tag", canal_nome:"DSports Colombia"}, CSV
 Exemplos:
 - "Exportar supply tags" → {base_dados:"KB_ADS", servico:"SpringServe", tipo:"supply_tag"}, CSV
 - "Exportar demand tags" → {base_dados:"KB_ADS", servico:"SpringServe", tipo:"demand_tag"}, CSV

@@ -25,7 +25,8 @@ $REGION = "us-east-1"
 $CONFIGURADORA   = "StreamingChatbotStack-ConfiguradoraFunction8C3D631-iH4bsa38s3jZ"
 $EXPORTADORA     = "StreamingChatbotStack-ExportadoraFunctionF7DCB910-tR185Y8NQSVn"
 $ORQUESTRADORA   = "StreamingChatbotStack-OrquestradoraFunctionC93F4B4-9i6FWg7EVPqV"
-$PIPELINE_ADS    = "StreamingChatbotStack-PipelineAdsFunctionB6C1190A-CI9tMXsbXg1g"
+$PIPELINE_ADS    = "StreamingChatbotPipelineA-PipelineAdsFunctionB6C11-hAyAMXXJRxcy"
+$PIPELINE_ADS_BATCH = "StreamingChatbotPipelineA-PipelineAdsBatchFunction-wWO4nZur4DDQ"
 $PIPELINE_LOGS   = "StreamingChatbotStack-PipelineLogsFunctionE340BB88-5SkoNySBybw4"
 $PIPELINE_CONFIG = "StreamingChatbotStack-PipelineConfigFunction079AFC-k9oe8dUaRswq"
 
@@ -87,7 +88,7 @@ function Run-AllDeploys {
 
     # --- 4. Pipeline Ads ---
     Write-Host ""
-    Write-Host "[4/6] Pipeline Ads" -ForegroundColor Cyan
+    Write-Host "[4/7] Pipeline Ads" -ForegroundColor Cyan
     Deploy-Lambda -Name "pipeline_ads" -SourceDir "lambdas\pipeline_ads" -FunctionName $PIPELINE_ADS `
         -HasShared $true `
         -SharedFiles @("__init__.py", "normalizers.py", "auth.py") `

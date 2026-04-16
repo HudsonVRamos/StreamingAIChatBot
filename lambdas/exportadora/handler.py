@@ -123,8 +123,8 @@ SPRINGSERVE_COMMON_COLUMNS = [
 
 SPRINGSERVE_COLUMNS = {
     "supply_tag": SPRINGSERVE_COMMON_COLUMNS + [
-        "supply_tag_id", "account_id", "demand_tag_count",
-        "demand_tags", "demand_tag_ids",
+        "supply_tag_id", "account_id", "canal_nome", "platform", "device",
+        "demand_tag_count", "demand_tags", "demand_tag_ids",
         "created_at", "updated_at",
     ],
     "demand_tag": SPRINGSERVE_COMMON_COLUMNS + [
@@ -771,6 +771,7 @@ def filter_records(
     _skip_keys = {
         "periodo", "parametros", "nome_canal_contains",
         "fill_rate_min", "fill_rate_max", "base_dados",
+        "device", "platform", "canal_nome",
     }
 
     resultado: list[dict[str, Any]] = []
@@ -801,6 +802,24 @@ def filter_records(
         if not match:
             resultado.append(rec) if False else None
             continue
+
+        # device / platform / canal_nome substring filters
+        device_filter = filtros.get("device", "").lower().replace(" ", "_")
+        platform_filter = filtros.get("platform", "").lower()
+        canal_nome_filter = filtros.get("canal_nome", "").lower()
+
+        if device_filter:
+            rec_device = (rec.get("device") or rec.get("nome", "")).lower().replace(" ", "_")
+            if device_filter not in rec_device:
+                continue
+        if platform_filter:
+            rec_platform = (rec.get("platform") or rec.get("nome", "")).lower()
+            if platform_filter not in rec_platform:
+                continue
+        if canal_nome_filter:
+            rec_canal = (rec.get("canal_nome") or rec.get("nome", "") or rec.get("supply_tag_name", "")).lower()
+            if canal_nome_filter not in rec_canal:
+                continue
 
         for key, expected in filtros.items():
             if key in _skip_keys:

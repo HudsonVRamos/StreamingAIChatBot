@@ -29,6 +29,64 @@ def _detect_ad_position(name: str) -> str:
     return "unknown"
 
 
+# Known devices extracted from supply tag name segments
+_KNOWN_DEVICES = {
+    "android_tv", "android_mobile", "android_tablet",
+    "samsung_tv", "fire_tv", "apple_tv", "roku", "lg_tv",
+    "ios", "iphone", "ipad", "chromecast", "xbox", "playstation",
+    "smart_tv", "desktop", "mobile", "tablet",
+}
+
+# Known platforms extracted from supply tag name segments
+_KNOWN_PLATFORMS = {"ctv", "app", "web", "stb", "ott"}
+
+
+def _parse_supply_tag_name(name: str) -> dict:
+    """Parse structured fields from supply tag name.
+
+    Expected pattern: "Canal - Platform - Device - AdPosition"
+    e.g. "DSports Colombia - CTV - android_tv - Preroll"
+         "DSports Colombia - Web - Preroll"  (no device)
+
+    Returns dict with keys: canal_nome, platform, device
+    """
+    parts = [p.strip() for p in name.split(" - ")]
+
+    canal_nome = parts[0] if parts else ""
+    platform = ""
+    device = ""
+
+    for part in parts[1:]:
+        lower = part.lower().replace(" ", "_")
+        if lower in _KNOWN_PLATFORMS:
+            platform = lower
+        elif lower in _KNOWN_DEVICES or any(d in lower for d in _KNOWN_DEVICES):
+            device = lower
+        # Also detect device by known substrings
+        elif any(kd in lower for kd in _KNOWN_DEVICES):
+            device = lower
+
+    # Fallback: if no device matched, check all parts for known device substrings
+    if not device:
+        for part in parts[1:]:
+            lower = part.lower().replace(" ", "_").replace("-", "_")
+            if lower in _KNOWN_DEVICES:
+                device = lower
+                break
+            for kd in _KNOWN_DEVICES:
+                if kd in lower:
+                    device = kd
+                    break
+            if device:
+                break
+
+    return {
+        "canal_nome": canal_nome,
+        "platform": platform,
+        "device": device,
+    }
+
+
 def normalize_supply_tag(
     raw: dict,
     demand_priorities: list | None = None,
@@ -53,12 +111,17 @@ def normalize_supply_tag(
         for d in demand_priorities
     ]
 
+    parsed = _parse_supply_tag_name(name)
+
     return {
         "channel_id": f"supply_tag_{supply_id}",
         "servico": "SpringServe",
         "tipo": "supply_tag",
         "supply_tag_id": supply_id,
         "nome": name,
+        "canal_nome": parsed["canal_nome"],
+        "platform": parsed["platform"],
+        "device": parsed["device"],
         "ad_position": _detect_ad_position(name),
         "status": (
             "active" if raw.get("is_active") else "inactive"

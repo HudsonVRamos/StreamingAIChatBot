@@ -223,6 +223,30 @@ def handler(event, context):
             },
         }
 
+    # --- Supply tags direct mode: process supply tags without SQS ---
+    if mode == "supply_tags_direct":
+        logger.info("Modo supply_tags_direct: processando supply tags sem SQS")
+        sm = boto3.client("secretsmanager", config=BOTO_CONFIG)
+        secret_resp = sm.get_secret_value(SecretId=SPRINGSERVE_SECRET_NAME)
+        creds = json.loads(secret_resp["SecretString"])
+        auth = SpringServeAuth(SPRINGSERVE_BASE_URL, creds["email"], creds["password"])
+        auth.authenticate()
+        _process_supply_tags_direct(auth, s3, ddb, results)
+        total_stored = results["stored"]
+        total_errors = len(results["errors"])
+        logger.info(
+            "supply_tags_direct finalizado: stored=%d, errors=%d",
+            total_stored, total_errors,
+        )
+        return {
+            "statusCode": 200,
+            "body": {
+                "mode": "supply_tags_direct",
+                "total_stored": total_stored,
+                "total_errors": total_errors,
+            },
+        }
+
     # --- Priorities-only mode: update existing supply tags with priorities ---
     if mode == "priorities_only":
         logger.info("Modo priorities_only: atualizando supply tags com priorities")
@@ -764,9 +788,11 @@ def _queue_supply_tags_for_batch_processing(auth, s3, ddb, results):
     """Queue supply tags for batch processing via SQS.
 
     Fetches the list of supply tags (without priorities) and sends
-    them in batches of 100 to SQS for parallel processing by
-    separate Lambda invocations. Returns empty list since
-    supply tags will be processed asynchronously.
+    them in batches to SQS for parallel processing.
+    
+    If SUPPLY_TAGS_QUEUE_URL is not set or SQS fails, falls back to
+    direct processing (normalize without demand priorities).
+    Returns list of normalized supply tags for correlation.
     """
     logger.info("Coletando supply tags para processamento em batch")
     try:
@@ -777,33 +803,33 @@ def _queue_supply_tags_for_batch_processing(auth, s3, ddb, results):
         _err(results, "supply_tags", str(exc))
         return []
 
+    queue_url = os.environ.get("SUPPLY_TAGS_QUEUE_URL", "")
+
+    if not queue_url:
+        logger.warning(
+            "SUPPLY_TAGS_QUEUE_URL não configurada — processando supply tags diretamente (sem priorities)"
+        )
+        return _process_supply_tags_direct(auth, s3, ddb, results, raw_tags)
+
     logger.info("Supply tags: %d encontradas, enviando para SQS em batches", len(raw_tags))
 
-    # Send to SQS in batches of 20 (smaller to fit SQS 1MB limit)
-    sqs = boto3.client("sqs", config=BOTO_CONFIG)
-    queue_url = os.environ.get("SUPPLY_TAGS_QUEUE_URL", "")
-    
-    if not queue_url:
-        logger.error("SUPPLY_TAGS_QUEUE_URL não configurada, não é possível processar supply tags")
-        return []
-
-    batch_size = 20  # Reduced from 100 to fit SQS 1MB limit
+    batch_size = 20
     batches_sent = 0
-    
+    sqs = boto3.client("sqs", config=BOTO_CONFIG)
+
     for i in range(0, len(raw_tags), batch_size):
         batch = raw_tags[i:i + batch_size]
-        # Send only essential fields to reduce message size
-        compact_batch = []
-        for tag in batch:
-            compact_batch.append({
+        compact_batch = [
+            {
                 "id": tag.get("id"),
                 "name": tag.get("name", ""),
                 "is_active": tag.get("is_active"),
                 "account_id": tag.get("account_id"),
                 "created_at": tag.get("created_at", ""),
                 "updated_at": tag.get("updated_at", ""),
-            })
-        
+            }
+            for tag in batch
+        ]
         try:
             sqs.send_message(
                 QueueUrl=queue_url,
@@ -818,16 +844,47 @@ def _queue_supply_tags_for_batch_processing(auth, s3, ddb, results):
             logger.error("Falha ao enviar batch %d para SQS: %s", i//batch_size + 1, exc)
             _err(results, f"sqs_batch_{i//batch_size + 1}", str(exc))
 
+    if batches_sent == 0:
+        logger.warning("Nenhum batch enviado ao SQS — processando supply tags diretamente")
+        return _process_supply_tags_direct(auth, s3, ddb, results, raw_tags)
+
     logger.info("Supply tags: %d batches enviados para SQS", batches_sent)
-    return []  # Empty since processing is async
-    """Collect, normalize and store all supply tags.
+    # Return normalized tags (without priorities) for correlation use
+    return _process_supply_tags_direct(auth, s3, ddb, results, raw_tags, store=False)
 
-    For each supply tag, also fetches demand_tag_priorities
-    in parallel using ThreadPoolExecutor with aggressive timeout.
-    Returns the list of normalized supply tags for correlation.
 
-    Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5
+def _process_supply_tags_direct(auth, s3, ddb, results, raw_tags=None, store=True):
+    """Process supply tags directly without SQS (no demand priorities).
+
+    Normalizes each supply tag with device/platform fields extracted
+    from the name. Optionally stores to S3+DynamoDB.
+    Returns list of normalized supply tags for correlation.
     """
+    if raw_tags is None:
+        try:
+            raw_tags = _paginate_springserve(
+                auth, SPRINGSERVE_ENDPOINTS["supply_tags"]
+            )
+        except Exception as exc:
+            _err(results, "supply_tags_direct", str(exc))
+            return []
+
+    logger.info(
+        "supply_tags_direct: processando %d tags (store=%s)",
+        len(raw_tags), store,
+    )
+    normalized = []
+    for raw in raw_tags:
+        try:
+            config = normalize_supply_tag(raw)  # no demand priorities
+            normalized.append(config)
+            if store:
+                _dual_write(s3, ddb, config, results)
+        except Exception as exc:
+            _err(results, f"supply_tag_{raw.get('id', '?')}", str(exc))
+
+    logger.info("supply_tags_direct: %d tags processadas", len(normalized))
+    return normalized
     logger.info("Coletando supply tags")
     normalized_tags = []
     try:
