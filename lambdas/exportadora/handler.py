@@ -166,6 +166,15 @@ CORRELACAO_COLUMNS = [
     "total_impressions_24h", "revenue", "rpm", "cpm",
 ]
 
+REPORT_BY_LABEL_COLUMNS = [
+    "channel_id", "servico", "tipo",
+    "supply_label_name", "canal_nome",
+    "requests", "opportunities", "impressions",
+    "fill_rate", "opp_fill_rate", "req_fill_rate",
+    "total_impressions", "total_revenue", "revenue",
+    "total_cost", "cpm", "rpm", "data_inicio", "data_fim",
+]
+
 LOGS_DEFAULT_COLUMNS = [
     "timestamp", "canal", "severidade", "tipo_erro", "descricao",
     "causa_provavel", "recomendacao_correcao", "servico_origem",
@@ -275,15 +284,16 @@ def _enrich_report_supply_tag_names(
     looks up the real name from supply_tag records in DynamoDB.
     Also extracts platform/device from the name for filtering.
     """
-    # Collect IDs that need enrichment
-    needs_enrichment = [
-        r for r in records
-        if r.get("tipo") == "report" and (
-            not r.get("supply_tag_name")
-            or str(r.get("supply_tag_name", "")).isdigit()
-        )
-    ]
-    if not needs_enrichment:
+    # Collect all report records - we need to enrich ALL of them with supply_label_name
+    report_records = [r for r in records if r.get("tipo") == "report"]
+    
+    logger.info(
+        "_enrich_report_supply_tag_names: %d total records, %d report records to enrich",
+        len(records),
+        len(report_records)
+    )
+    
+    if not report_records:
         return records
 
     # Build lookup from supply_tag records
@@ -292,7 +302,7 @@ def _enrich_report_supply_tag_names(
         from boto3.dynamodb.conditions import Key as _Key
         resp = table.query(
             KeyConditionExpression=_Key("PK").eq("SpringServe#supply_tag"),
-            ProjectionExpression="supply_tag_id, nome, #dev, platform, canal_nome",
+            ProjectionExpression="supply_tag_id, nome, #dev, platform, canal_nome, supply_label_name",
             ExpressionAttributeNames={"#dev": "device"},
         )
         lookup: dict[str, dict] = {}
@@ -300,11 +310,17 @@ def _enrich_report_supply_tag_names(
             sid = str(item.get("supply_tag_id", ""))
             if sid:
                 lookup[sid] = item
+        
+        logger.info(
+            "_enrich_report_supply_tag_names: loaded %d supply_tags from first page",
+            len(lookup)
+        )
+        
         # Paginate if needed
         while resp.get("LastEvaluatedKey"):
             resp = table.query(
                 KeyConditionExpression=_Key("PK").eq("SpringServe#supply_tag"),
-                ProjectionExpression="supply_tag_id, nome, #dev, platform, canal_nome",
+                ProjectionExpression="supply_tag_id, nome, #dev, platform, canal_nome, supply_label_name",
                 ExpressionAttributeNames={"#dev": "device"},
                 ExclusiveStartKey=resp["LastEvaluatedKey"],
             )
@@ -312,26 +328,39 @@ def _enrich_report_supply_tag_names(
                 sid = str(item.get("supply_tag_id", ""))
                 if sid:
                     lookup[sid] = item
+        
+        logger.info(
+            "_enrich_report_supply_tag_names: total %d supply_tags loaded after pagination",
+            len(lookup)
+        )
     except Exception as exc:
         logger.warning("_enrich_report_supply_tag_names: lookup failed: %s", exc)
         return records
 
-    # Apply enrichment
+    # Apply enrichment to ALL report records
+    enriched_count = 0
     for rec in records:
         if rec.get("tipo") != "report":
             continue
         sid = str(rec.get("supply_tag_id", ""))
         if sid and sid in lookup:
             tag = lookup[sid]
+            # Only update supply_tag_name if it's missing or looks like an ID
             if not rec.get("supply_tag_name") or str(rec.get("supply_tag_name", "")).isdigit():
                 rec["supply_tag_name"] = tag.get("nome", "")
-            # Always copy device/platform/canal_nome for filtering
-            if not rec.get("device"):
-                rec["device"] = tag.get("device", "")
-            if not rec.get("platform"):
-                rec["platform"] = tag.get("platform", "")
-            if not rec.get("canal_nome"):
-                rec["canal_nome"] = tag.get("canal_nome", "")
+            # ALWAYS copy these fields for filtering (even if supply_tag_name exists)
+            rec["device"] = tag.get("device", "")
+            rec["platform"] = tag.get("platform", "")
+            rec["canal_nome"] = tag.get("canal_nome", "")
+            rec["supply_label_name"] = tag.get("supply_label_name", "")
+            enriched_count += 1
+    
+    logger.info(
+        "_enrich_report_supply_tag_names: enriched %d records (sample: supply_tag_id=%s, supply_label_name=%s)",
+        enriched_count,
+        records[0].get("supply_tag_id") if records else None,
+        records[0].get("supply_label_name") if records else None
+    )
 
     return records
 
@@ -342,33 +371,56 @@ def query_dynamodb_ads(
     """Query StreamingConfigs table for SpringServe/KB_ADS data.
 
     Uses PK=SpringServe#{tipo} or PK=Correlacao#canal.
-    Supports filters: tipo, servico, supply_tag_name,
-    fill_rate_min, fill_rate_max.
+    For reports with periodo filter, uses SK FilterExpression
+    on data_fim to avoid full partition scan.
+    
+    For report_by_label: queries report data and enriches with
+    supply_label_name from supply_tags.
     """
     table = dynamodb_resource.Table(table_name)
     servico = filtros.get("servico", "SpringServe")
     tipo = filtros.get("tipo", "")
 
+    # report_by_label is virtual — query report data instead
+    query_tipo = "report" if tipo == "report_by_label" else tipo
+
     # Build PK based on servico + tipo
-    # e.g. SpringServe#report, SpringServe#supply_tag,
-    #      Correlacao#canal
     if servico == "Correlacao":
         pk_val = "Correlacao#canal"
-    elif tipo:
-        pk_val = f"SpringServe#{tipo}"
+    elif query_tipo:
+        pk_val = f"SpringServe#{query_tipo}"
     else:
-        # No tipo — scan all SpringServe partitions
         pk_val = None
 
     items: list[dict] = []
 
     if pk_val:
+        from boto3.dynamodb.conditions import Key as _Key, Attr as _Attr
+
         kwargs: dict[str, Any] = {
-            "KeyConditionExpression":
-                boto3.dynamodb.conditions.Key("PK").eq(
-                    pk_val
-                ),
+            "KeyConditionExpression": _Key("PK").eq(pk_val),
         }
+
+        # For reports: push date filter into DynamoDB using SK suffix
+        # SK format: "supply_tag_name#YYYY-MM-DD"
+        # Use FilterExpression on data_fim attribute for date range
+        periodo = filtros.get("periodo", {})
+        if query_tipo == "report" and isinstance(periodo, dict):
+            inicio = periodo.get("inicio", "")[:10]  # YYYY-MM-DD
+            fim = periodo.get("fim", "")[:10]
+            if inicio and fim:
+                if inicio == fim:
+                    # Single day: filter SK ends with #date
+                    kwargs["FilterExpression"] = _Attr("data_fim").eq(inicio)
+                else:
+                    kwargs["FilterExpression"] = (
+                        _Attr("data_fim").between(inicio, fim)
+                    )
+            elif inicio:
+                kwargs["FilterExpression"] = _Attr("data_fim").gte(inicio)
+            elif fim:
+                kwargs["FilterExpression"] = _Attr("data_fim").lte(fim)
+
         while True:
             resp = table.query(**kwargs)
             items.extend(resp.get("Items", []))
@@ -404,6 +456,16 @@ def query_dynamodb_ads(
                     "Bad data in ads item PK=%s SK=%s",
                     item.get("PK"), item.get("SK"),
                 )
+    
+    # Always enrich reports with supply_label_name from supply_tags
+    if query_tipo == "report":
+        records = _enrich_report_supply_tag_names(records, table_name)
+        logger.info(
+            "Enriched %d report records with supply_label_name (sample: %s)",
+            len(records),
+            records[0].get("supply_label_name") if records else None
+        )
+    
     return records
 
 
@@ -785,10 +847,35 @@ def _get_nested(record: dict[str, Any], key: str) -> Any:
 def _match_periodo(
     record: dict[str, Any], periodo: dict[str, str]
 ) -> bool:
-    """Check if a record's timestamp falls within the given period."""
+    """Check if a record's timestamp or data_fim falls within the given period.
+
+    For SpringServe reports (no timestamp), uses data_fim or data_inicio.
+    """
+    inicio = periodo.get("inicio")
+    fim = periodo.get("fim")
+
+    # Extract date boundary strings for simple date comparison (YYYY-MM-DD)
+    inicio_date = inicio[:10] if inicio else None
+    fim_date = fim[:10] if fim else None
+
+    # --- SpringServe reports: use data_fim or data_inicio (YYYY-MM-DD) ---
+    report_date_str = record.get("data_fim") or record.get("data_inicio")
+    if not record.get("timestamp"):
+        if not report_date_str:
+            # No date at all and periodo filter is active → exclude
+            return False
+        # Normalize to YYYY-MM-DD
+        report_date = str(report_date_str)[:10]
+        if inicio_date and report_date < inicio_date:
+            return False
+        if fim_date and report_date > fim_date:
+            return False
+        return True
+
+    # --- Default: use timestamp field ---
     ts_str = record.get("timestamp")
     if not ts_str:
-        return True  # no timestamp → don't exclude
+        return True  # no date field at all → don't exclude
 
     try:
         ts = datetime.fromisoformat(
@@ -797,7 +884,6 @@ def _match_periodo(
     except (ValueError, TypeError):
         return True
 
-    inicio = periodo.get("inicio")
     if inicio:
         try:
             dt_inicio = datetime.fromisoformat(
@@ -808,7 +894,6 @@ def _match_periodo(
         except (ValueError, TypeError):
             pass
 
-    fim = periodo.get("fim")
     if fim:
         try:
             dt_fim = datetime.fromisoformat(
@@ -839,15 +924,25 @@ def filter_records(
     if not filtros:
         return list(records)
 
+    logger.info(
+        "filter_records: filtering %d records with filtros=%s (sample record: %s)",
+        len(records),
+        {k: v for k, v in filtros.items() if k not in ["parametros"]},
+        {k: v for k, v in records[0].items() if k in ["tipo", "supply_tag_name", "supply_label_name", "supply_tag_id"]} if records else None
+    )
+
     # Extract numeric range filters for SpringServe
     fill_rate_min = filtros.get("fill_rate_min")
     fill_rate_max = filtros.get("fill_rate_max")
     # Keys handled separately (not direct equality match)
     _skip_keys = {
-        "periodo", "parametros", "nome_canal_contains",
+        "parametros", "nome_canal_contains",
         "fill_rate_min", "fill_rate_max", "base_dados",
-        "device", "platform", "canal_nome",
+        "device", "platform", "canal_nome", "supply_tag_name",
     }
+    # Skip tipo filter for report_by_label (virtual type)
+    if filtros.get("tipo") == "report_by_label":
+        _skip_keys.add("tipo")
 
     resultado: list[dict[str, Any]] = []
 
@@ -878,12 +973,13 @@ def filter_records(
             resultado.append(rec) if False else None
             continue
 
-        # device / platform / canal_nome substring filters
+        # device / platform / canal_nome / supply_tag_name substring filters
         # Works for supply_tag records (have device/platform fields)
         # AND for report records (fall back to supply_tag_name substring)
         device_filter = filtros.get("device", "").lower().replace(" ", "_")
         platform_filter = filtros.get("platform", "").lower()
         canal_nome_filter = filtros.get("canal_nome", "").lower()
+        supply_tag_name_filter = filtros.get("supply_tag_name", "").lower()
 
         # Build a searchable string from all name-like fields
         name_haystack = " ".join(filter(None, [
@@ -892,20 +988,41 @@ def filter_records(
             str(rec.get("canal_nome") or ""),
             str(rec.get("nome") or ""),
             str(rec.get("supply_tag_name") or ""),
+            str(rec.get("supply_label_name") or ""),
         ])).lower().replace(" ", "_")
 
         if device_filter and device_filter not in name_haystack:
             continue
         if platform_filter and platform_filter not in name_haystack:
             continue
-        if canal_nome_filter:
-            canal_haystack = " ".join(filter(None, [
-                str(rec.get("canal_nome") or ""),
-                str(rec.get("nome") or ""),
+        
+        # supply_tag_name filter: search in supply_tag_name and supply_label_name
+        if supply_tag_name_filter:
+            tag_haystack = " ".join(filter(None, [
                 str(rec.get("supply_tag_name") or ""),
+                str(rec.get("supply_label_name") or ""),
             ])).lower()
-            if canal_nome_filter not in canal_haystack:
+            if supply_tag_name_filter not in tag_haystack:
                 continue
+        
+        if canal_nome_filter:
+            # For report_by_label: search in supply_label_name primarily
+            # Check filtros tipo, not record tipo (records are always "report")
+            tipo_filtro = filtros.get("tipo", "")
+            if tipo_filtro == "report_by_label":
+                label_haystack = str(rec.get("supply_label_name") or "").lower()
+                if canal_nome_filter not in label_haystack:
+                    continue
+            else:
+                # For other types: search in multiple fields
+                canal_haystack = " ".join(filter(None, [
+                    str(rec.get("canal_nome") or ""),
+                    str(rec.get("nome") or ""),
+                    str(rec.get("supply_tag_name") or ""),
+                    str(rec.get("supply_label_name") or ""),
+                ])).lower()
+                if canal_nome_filter not in canal_haystack:
+                    continue
 
         for key, expected in filtros.items():
             if key in _skip_keys:
@@ -947,6 +1064,10 @@ def filter_records(
         if match:
             resultado.append(rec)
 
+    logger.info(
+        "filter_records: returned %d records after filtering",
+        len(resultado)
+    )
     return resultado
 
 
@@ -963,6 +1084,90 @@ def _values_match(actual: Any, expected: Any) -> bool:
     if isinstance(expected, str) and isinstance(actual, str):
         return actual.lower() == expected.lower()
     return str(actual) == str(expected)
+
+
+def aggregate_report_by_label(
+    records: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Aggregate report records by supply_label_name.
+
+    Groups records by supply_label_name and sums numeric metrics
+    (revenue, impressions, requests, opportunities, etc.).
+    Calculates weighted averages for rates (fill_rate, rpm, cpm).
+    """
+    from collections import defaultdict
+
+    # Group by supply_label_name
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for rec in records:
+        label = rec.get("supply_label_name", "") or "Sem Label"
+        groups[label].append(rec)
+
+    # Aggregate each group
+    aggregated = []
+    for label, group_recs in groups.items():
+        agg = {
+            "tipo": "report_by_label",
+            "servico": "SpringServe",
+            "supply_label_name": label,
+            "canal_nome": label,  # Use label as canal_nome
+            "requests": 0,
+            "opportunities": 0,
+            "impressions": 0,
+            "total_impressions": 0,
+            "total_revenue": 0.0,
+            "revenue": 0.0,
+            "total_cost": 0.0,
+        }
+
+        # Sum numeric fields
+        for rec in group_recs:
+            for field in ["requests", "opportunities", "impressions", "total_impressions"]:
+                val = rec.get(field, 0)
+                try:
+                    agg[field] += int(val) if val else 0
+                except (ValueError, TypeError):
+                    pass
+
+            for field in ["total_revenue", "revenue", "total_cost"]:
+                val = rec.get(field, 0)
+                try:
+                    agg[field] += float(val) if val else 0.0
+                except (ValueError, TypeError):
+                    pass
+
+        # Calculate rates
+        if agg["requests"] > 0:
+            agg["fill_rate"] = round(agg["impressions"] / agg["requests"], 4)
+            agg["req_fill_rate"] = agg["fill_rate"]
+        else:
+            agg["fill_rate"] = 0.0
+            agg["req_fill_rate"] = 0.0
+
+        if agg["opportunities"] > 0:
+            agg["opp_fill_rate"] = round(agg["impressions"] / agg["opportunities"], 4)
+        else:
+            agg["opp_fill_rate"] = 0.0
+
+        # Calculate RPM and CPM
+        if agg["impressions"] > 0:
+            agg["rpm"] = round((agg["revenue"] / agg["impressions"]) * 1000, 2)
+            agg["cpm"] = round((agg["total_cost"] / agg["impressions"]) * 1000, 2)
+        else:
+            agg["rpm"] = 0.0
+            agg["cpm"] = 0.0
+
+        # Get date range from group
+        dates = [rec.get("data_fim") or rec.get("data_inicio") for rec in group_recs if rec.get("data_fim") or rec.get("data_inicio")]
+        if dates:
+            agg["data_inicio"] = min(dates)
+            agg["data_fim"] = max(dates)
+
+        aggregated.append(agg)
+
+    # Sort by revenue descending
+    aggregated.sort(key=lambda x: x.get("revenue", 0), reverse=True)
+    return aggregated
 
 
 # -------------------------------------------------------------------
@@ -991,10 +1196,12 @@ def determine_columns(
     """Determine columns based on the service being exported."""
     if not data:
         servico = filtros.get("servico", "")
+        tipo = filtros.get("tipo", "")
         if servico == "Correlacao":
             return list(CORRELACAO_COLUMNS)
         if servico == "SpringServe":
-            tipo = filtros.get("tipo", "")
+            if tipo == "report_by_label":
+                return list(REPORT_BY_LABEL_COLUMNS)
             return list(
                 SPRINGSERVE_COLUMNS.get(
                     tipo, SPRINGSERVE_COMMON_COLUMNS
@@ -1019,6 +1226,8 @@ def determine_columns(
         if not tipo and data:
             flat = _flatten_record(data[0])
             tipo = flat.get("tipo", "")
+        if tipo == "report_by_label":
+            return list(REPORT_BY_LABEL_COLUMNS)
         return list(
             SPRINGSERVE_COLUMNS.get(
                 tipo, SPRINGSERVE_COMMON_COLUMNS
@@ -1350,6 +1559,17 @@ def handler(event: dict, context: Any) -> dict:
                 "total_registros": 0,
             })
 
+        # Apply aggregation for report_by_label
+        tipo_filtro = filtros.get("tipo", "")
+        if tipo_filtro == "report_by_label":
+            logger.info(
+                "Aggregating %d report records by label", len(dados)
+            )
+            dados = aggregate_report_by_label(dados)
+            logger.info(
+                "Aggregation complete: %d label groups", len(dados)
+            )
+
         # Determine columns
         colunas_finais = (
             colunas_custom
@@ -1398,8 +1618,46 @@ def handler(event: dict, context: Any) -> dict:
                 preview_names.append(str(name))
 
         marcador = f"[DOWNLOAD_EXPORT:{filename}:{ext}]"
+        
+        # For report_by_label, include REVENUE_DATA for charts
+        revenue_data = None
+        if tipo_filtro == "report_by_label" and dados:
+            labels = []
+            values = []
+            total_revenue = 0.0
+            total_impressions = 0
+            total_rpm = 0.0
+            total_cpm = 0.0
+            
+            for rec in dados:
+                label = rec.get("supply_label_name") or rec.get("canal_nome", "Unknown")
+                revenue = float(rec.get("revenue", 0) or 0)
+                impressions = int(rec.get("total_impressions", 0) or 0)
+                rpm = float(rec.get("rpm", 0) or 0)
+                cpm = float(rec.get("cpm", 0) or 0)
+                
+                labels.append(label)
+                values.append(revenue)
+                total_revenue += revenue
+                total_impressions += impressions
+                total_rpm += rpm
+                total_cpm += cpm
+            
+            # Calculate averages
+            count = len(dados)
+            rpm_medio = total_rpm / count if count > 0 else 0
+            cpm_medio = total_cpm / count if count > 0 else 0
+            
+            revenue_data = {
+                "labels": labels,
+                "values": values,
+                "total": round(total_revenue, 2),
+                "rpm_medio": round(rpm_medio, 2),
+                "cpm_medio": round(cpm_medio, 2),
+                "impressions_total": total_impressions,
+            }
 
-        return _bedrock_response(event, 200, {
+        response_body = {
             "mensagem": (
                 f"Exportação concluída: {len(dados)} registros em {formato}. "
                 f"Inclua o marcador {marcador} na resposta para o frontend gerar o botão de download."
@@ -1408,7 +1666,13 @@ def handler(event: dict, context: Any) -> dict:
             "preview": preview_names,
             "marcador_download": marcador,
             "formato_arquivo": ext,
-        })
+        }
+        
+        if revenue_data:
+            response_body["revenue_data"] = revenue_data
+            response_body["marcador_revenue"] = f"[REVENUE_DATA:{json.dumps(revenue_data)}]"
+
+        return _bedrock_response(event, 200, response_body)
 
     except ClientError as exc:
         error_code = exc.response.get("Error", {}).get(

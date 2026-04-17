@@ -90,6 +90,7 @@ def _parse_supply_tag_name(name: str) -> dict:
 def normalize_supply_tag(
     raw: dict,
     demand_priorities: list | None = None,
+    label_name_by_tag_id: dict | None = None,
 ) -> Dict[str, Any]:
     """Normalize a raw SpringServe supply tag to flat JSON.
 
@@ -97,9 +98,11 @@ def normalize_supply_tag(
         raw: Raw supply tag dict from the API.
         demand_priorities: List of demand_tag_priority dicts
             from GET /supply_tags/{id}/demand_tag_priorities.
+        label_name_by_tag_id: Dict mapping supply_tag_id to label name.
     """
     supply_id = raw.get("id", "")
     demand_priorities = demand_priorities or []
+    label_name_by_tag_id = label_name_by_tag_id or {}
     name = raw.get("name", "")
 
     demand_names = [
@@ -130,6 +133,7 @@ def normalize_supply_tag(
         "demand_tag_count": len(demand_priorities),
         "demand_tags": ", ".join(demand_names) if demand_names else "",
         "demand_tag_ids": ", ".join(demand_ids) if demand_ids else "",
+        "supply_label_name": label_name_by_tag_id.get(supply_id, ""),
         "created_at": raw.get("created_at", ""),
         "updated_at": raw.get("updated_at", ""),
     }
@@ -173,9 +177,14 @@ def normalize_report(raw: dict) -> Dict[str, Any]:
         "supply_tag_name": supply_name,
         "ad_position": _detect_ad_position(supply_name),
         # Core delivery metrics
-        "requests": raw.get("requests"),
+        "requests": raw.get("requests", raw.get("ad_requests", raw.get("total_requests"))),
         "opportunities": raw.get("opportunities", raw.get("opps")),
-        "impressions": raw.get("impressions", raw.get("total_impressions")),
+        "impressions": raw.get("impressions", raw.get("served_impressions", raw.get("total_impressions",
+            # Calculate from opportunities * fill_rate if not returned by API
+            round(raw["opportunities"] * raw["fill_rate"])
+            if raw.get("opportunities") is not None and raw.get("fill_rate") is not None
+            else None
+        ))),
         # Fill rates
         "fill_rate": raw.get("fill_rate"),
         "opp_fill_rate": raw.get("opp_fill_rate", raw.get("opp_fill_pct")),
@@ -199,7 +208,41 @@ def normalize_report(raw: dict) -> Dict[str, Any]:
     }
 
 
-def normalize_delivery_modifier(raw: dict) -> Dict[str, Any]:
+def normalize_report_by_label(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe report row by supply_label to flat JSON."""
+    label_id = raw.get("supply_label_id", "")
+    label_name = raw.get("supply_label_name", raw.get("label_name", ""))
+
+    opps = raw.get("opportunities")
+    fill = raw.get("fill_rate")
+    imps = raw.get("impressions", raw.get("total_impressions",
+        round(opps * fill) if opps is not None and fill is not None else None
+    ))
+
+    return {
+        "channel_id": f"report_label_{label_id}",
+        "servico": "SpringServe",
+        "tipo": "report_by_label",
+        "supply_label_id": label_id,
+        "supply_label_name": label_name,
+        "requests": raw.get("requests", raw.get("ad_requests")),
+        "opportunities": opps,
+        "impressions": imps,
+        "fill_rate": fill,
+        "opp_fill_rate": raw.get("opp_fill_rate"),
+        "req_fill_rate": raw.get("req_fill_rate"),
+        "revenue": raw.get("revenue", raw.get("total_revenue")),
+        "total_cost": raw.get("total_cost"),
+        "cpm": raw.get("cpm"),
+        "rpm": raw.get("rpm"),
+        "total_impressions": imps,
+        "total_revenue": raw.get("revenue", raw.get("total_revenue")),
+        "data_inicio": raw.get("data_inicio", raw.get("start_date", "")),
+        "data_fim": raw.get("data_fim", raw.get("end_date", "")),
+    }
+
+
+
     """Normalize a raw SpringServe delivery modifier to flat JSON."""
     modifier_id = raw.get("id", "")
     dtag_ids = raw.get("demand_tag_ids", []) or []
@@ -216,6 +259,30 @@ def normalize_delivery_modifier(raw: dict) -> Dict[str, Any]:
         "multiplier_interaction": raw.get(
             "multiplier_interaction", ""
         ),
+    }
+
+
+def normalize_delivery_modifier(raw: dict) -> Dict[str, Any]:
+    """Normalize a raw SpringServe delivery modifier to flat JSON."""
+    modifier_id = raw.get("id", "")
+
+    return {
+        "channel_id": f"delivery_modifier_{modifier_id}",
+        "servico": "SpringServe",
+        "tipo": "delivery_modifier",
+        "modifier_id": modifier_id,
+        "nome": raw.get("name", ""),
+        "status": (
+            "active" if raw.get("is_active") else "inactive"
+        ),
+        "modifier_type": raw.get("modifier_type", raw.get("type", "")),
+        "supply_tag_id": raw.get("supply_tag_id"),
+        "demand_tag_id": raw.get("demand_tag_id"),
+        "value": raw.get("value"),
+        "start_date": raw.get("start_date", ""),
+        "end_date": raw.get("end_date", ""),
+        "created_at": raw.get("created_at", ""),
+        "updated_at": raw.get("updated_at", ""),
     }
 
 

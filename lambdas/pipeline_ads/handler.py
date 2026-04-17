@@ -23,30 +23,18 @@ from urllib.parse import parse_qs, urlparse
 import boto3
 from botocore.config import Config as BotoConfig
 
-try:
-    from shared.auth import SpringServeAuth
-    from shared.normalizers import (
-        normalize_supply_tag,
-        normalize_demand_tag,
-        normalize_report,
-        normalize_delivery_modifier,
-        normalize_creative,
-        normalize_label,
-        normalize_scheduled_report,
-        normalize_correlation,
-    )
-except ImportError:
-    from lambdas.pipeline_ads.shared.auth import SpringServeAuth
-    from lambdas.pipeline_ads.shared.normalizers import (
-        normalize_supply_tag,
-        normalize_demand_tag,
-        normalize_report,
-        normalize_delivery_modifier,
-        normalize_creative,
-        normalize_label,
-        normalize_scheduled_report,
-        normalize_correlation,
-    )
+from shared.auth import SpringServeAuth
+from shared.normalizers import (
+    normalize_supply_tag,
+    normalize_demand_tag,
+    normalize_report,
+    normalize_report_by_label,
+    normalize_delivery_modifier,
+    normalize_creative,
+    normalize_label,
+    normalize_scheduled_report,
+    normalize_correlation,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -208,6 +196,13 @@ def handler(event, context):
         except Exception as exc:
             logger.warning("reports_only: falha ao carregar supply tags do S3: %s", exc)
         _process_reports(auth, s3, ddb, results, stag_name_by_id)
+
+        # Also collect reports by label (separate — does not affect supply tag reports)
+        label_name_by_id: dict = {}
+        from datetime import timedelta
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+        _process_reports_by_label_for_date(auth, s3, ddb, results, label_name_by_id, yesterday)
+
         total_stored = results["stored"]
         total_errors = len(results["errors"])
         logger.info(
@@ -218,6 +213,78 @@ def handler(event, context):
             "statusCode": 200,
             "body": {
                 "mode": "reports_only",
+                "total_stored": total_stored,
+                "total_errors": total_errors,
+            },
+        }
+
+    # --- Backfill mode: fetch reports for each day in a date range ---
+    if mode == "backfill":
+        from datetime import timedelta
+        days = int(event.get("days", 30))
+        # Optional: specific start/end date override
+        start_date_str = event.get("start_date")
+        end_date_str = event.get("end_date")
+
+        logger.info("Modo backfill: days=%d, start=%s, end=%s", days, start_date_str, end_date_str)
+        sm = boto3.client("secretsmanager", config=BOTO_CONFIG)
+        secret_resp = sm.get_secret_value(SecretId=SPRINGSERVE_SECRET_NAME)
+        creds = json.loads(secret_resp["SecretString"])
+        auth = SpringServeAuth(SPRINGSERVE_BASE_URL, creds["email"], creds["password"])
+        auth.authenticate()
+
+        stag_name_by_id = {}
+        try:
+            supply_tags_s3 = _load_supply_tags_from_s3(s3)
+            stag_name_by_id = {
+                str(st.get("supply_tag_id", "")): st.get("nome", "")
+                for st in supply_tags_s3
+                if st.get("supply_tag_id") and st.get("nome")
+            }
+            logger.info("backfill: %d supply tag names carregados", len(stag_name_by_id))
+        except Exception as exc:
+            logger.warning("backfill: falha ao carregar supply tags: %s", exc)
+
+        from datetime import timedelta
+        today = datetime.now(timezone.utc).date()
+
+        # Build list of dates to process
+        if start_date_str and end_date_str:
+            from datetime import date as date_type
+            start_d = date_type.fromisoformat(start_date_str)
+            end_d = date_type.fromisoformat(end_date_str)
+            dates = []
+            cur = start_d
+            while cur <= end_d:
+                dates.append(cur.strftime("%Y-%m-%d"))
+                cur += timedelta(days=1)
+        else:
+            dates = [
+                (today - timedelta(days=i)).strftime("%Y-%m-%d")
+                for i in range(1, days + 1)
+            ]
+
+        total_stored = 0
+        total_errors = 0
+
+        for date_str in dates:
+            logger.info("backfill: processando %s", date_str)
+            day_results = {"stored": 0, "errors": [], "skipped_validation": 0}
+            _process_reports_for_date(auth, s3, ddb, day_results, stag_name_by_id, date_str)
+            _process_reports_by_label_for_date(auth, s3, ddb, day_results, {}, date_str)
+            total_stored += day_results["stored"]
+            total_errors += len(day_results["errors"])
+            logger.info(
+                "backfill %s: stored=%d, errors=%d",
+                date_str, day_results["stored"], len(day_results["errors"])
+            )
+
+        logger.info("backfill finalizado: total_stored=%d, total_errors=%d", total_stored, total_errors)
+        return {
+            "statusCode": 200,
+            "body": {
+                "mode": "backfill",
+                "dates_processed": len(dates),
                 "total_stored": total_stored,
                 "total_errors": total_errors,
             },
@@ -331,8 +398,11 @@ def handler(event, context):
         "skipped_validation": 0,
     }
 
-    # --- Phase 1: supply_tags (direct processing) ---
-    supply_tags = _process_supply_tags_direct(auth, s3, ddb, results)
+    # --- Phase 0: labels (needed for supply_tags enrichment) ---
+    label_name_by_tag_id = _process_labels(auth, s3, ddb, results)
+
+    # --- Phase 1: supply_tags (direct processing with label enrichment) ---
+    supply_tags = _process_supply_tags_direct(auth, s3, ddb, results, label_name_by_tag_id=label_name_by_tag_id)
 
     # --- Phase 2: remaining collectors in parallel ---
     # Build supply tag name lookup for report enrichment
@@ -348,7 +418,6 @@ def handler(event, context):
         ("scheduled_reports", _process_scheduled_reports),
         ("delivery_modifiers", _process_delivery_modifiers),
         ("creatives", _process_creatives),
-        ("labels", _process_labels),
     ]
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -540,12 +609,20 @@ def _write_ad_to_dynamodb(ddb, config):
     entity name, following the same pattern as
     ``_write_config_to_dynamodb`` in pipeline_config.
 
+    For reports: uses conditional write to avoid overwriting
+    a finalized day's data if it already exists with the same
+    date. TTL set to 30 days for automatic cleanup.
+
     Validates: Requirements 2.5, 3.4, 4.4, 5.5
     """
     try:
         servico = config.get("servico", "Unknown")
         tipo = config.get("tipo", "unknown")
         sk = _build_dynamodb_sk(config)
+
+        # TTL: 30 days from now
+        import time
+        ttl_value = int(time.time()) + (30 * 24 * 3600)
 
         item = {
             "PK": f"{servico}#{tipo}",
@@ -556,11 +633,12 @@ def _write_ad_to_dynamodb(ddb, config):
             "updated_at": datetime.now(
                 timezone.utc
             ).isoformat(),
+            "ttl": ttl_value,
         }
 
         # Promote scalar fields to top-level attributes
         for k, v in config.items():
-            if k in ("PK", "SK", "data", "updated_at"):
+            if k in ("PK", "SK", "data", "updated_at", "ttl"):
                 continue
             if v is None:
                 continue
@@ -595,6 +673,10 @@ def _build_dynamodb_sk(config):
                 ),
             ),
         )
+        return f"{name}#{date}"
+    if tipo == "report_by_label":
+        name = config.get("supply_label_name", "")
+        date = config.get("data_fim", datetime.now(timezone.utc).strftime("%Y-%m-%d"))
         return f"{name}#{date}"
     if tipo == "canal_springserve":
         # SK = mediatailor_name so Configuradora can look up by MT name
@@ -782,12 +864,15 @@ def _process_priorities_only(auth, s3, ddb, results):
     logger.info(f"Priorities atualizadas: {updated} supply tags")
 
 
-def _process_supply_tags_direct(auth, s3, ddb, results, raw_tags=None, store=True):
+def _process_supply_tags_direct(auth, s3, ddb, results, raw_tags=None, store=True, label_name_by_tag_id=None):
     """Process supply tags directly without SQS (no demand priorities).
 
     Normalizes each supply tag with device/platform fields extracted
     from the name. Optionally stores to S3+DynamoDB.
     Returns list of normalized supply tags for correlation.
+    
+    Args:
+        label_name_by_tag_id: Dict mapping supply_tag_id to label name.
     """
     if raw_tags is None:
         try:
@@ -798,14 +883,15 @@ def _process_supply_tags_direct(auth, s3, ddb, results, raw_tags=None, store=Tru
             _err(results, "supply_tags_direct", str(exc))
             return []
 
+    label_name_by_tag_id = label_name_by_tag_id or {}
     logger.info(
-        "supply_tags_direct: processando %d tags (store=%s)",
-        len(raw_tags), store,
+        "supply_tags_direct: processando %d tags (store=%s, labels=%d)",
+        len(raw_tags), store, len(label_name_by_tag_id),
     )
     normalized = []
     for raw in raw_tags:
         try:
-            config = normalize_supply_tag(raw)  # no demand priorities
+            config = normalize_supply_tag(raw, label_name_by_tag_id=label_name_by_tag_id)
             normalized.append(config)
             if store:
                 _dual_write(s3, ddb, config, results)
@@ -898,22 +984,81 @@ def _process_demand_tags(auth, s3, ddb, results):
     logger.info("Demand tags: %d coletadas", len(raw_tags))
 
 
-def _process_reports(auth, s3, ddb, results, stag_name_by_id=None):
-    """Generate and store yesterday's report metrics.
+def _process_reports_by_label_for_date(auth, s3, ddb, results, label_name_by_id, date_str):
+    """Fetch and store SpringServe report metrics by supply_label for a specific date.
 
-    Requests all metrics visible in the SpringServe UI:
-    Requests, Opps, Imps, Opp Fill %, Req Fill %,
-    Pod Time Req Fill %, RPM, Rev.
+    Uses start_date/end_date with dimensions=["supply_label_id"].
+    Stored separately as tipo=report_by_label — does NOT touch supply tag reports.
+    """
+    logger.info("Gerando relatórios por label para %s", date_str)
+    report_body = {
+        "async": False,
+        "start_date": date_str,
+        "end_date": date_str,
+        "dimensions": ["supply_label_id"],
+        "metrics": [
+            "requests",
+            "opportunities",
+            "impressions",
+            "fill_rate",
+            "opp_fill_rate",
+            "req_fill_rate",
+            "revenue",
+            "total_cost",
+            "cpm",
+            "rpm",
+        ],
+        "interval": "Cumulative",
+        "timezone": "America/Sao_Paulo",
+        "csv": False,
+    }
+    try:
+        resp = auth.request("POST", SPRINGSERVE_ENDPOINTS["reports"], json=report_body)
+        data = resp.json()
+        rows = data.get("result", data.get("results", []))
+        if isinstance(data, list):
+            rows = data
+        logger.info("Reports by label %s: %d linhas recebidas", date_str, len(rows))
+    except Exception as exc:
+        _err(results, f"reports_by_label_{date_str}", str(exc))
+        return
 
-    stag_name_by_id: optional dict {supply_tag_id: nome} for enrichment.
+    for raw in rows:
+        try:
+            lid = str(raw.get("supply_label_id", ""))
+            if lid and label_name_by_id.get(lid):
+                raw.setdefault("supply_label_name", label_name_by_id[lid])
+            raw["start_date"] = date_str
+            raw["end_date"] = date_str
+            config = normalize_report_by_label(raw)
+            _dual_write(s3, ddb, config, results)
+        except Exception as exc:
+            _err(results, f"report_label_{date_str}_{raw.get('supply_label_id', '?')}", str(exc))
+
+    logger.info("Reports by label %s: %d linhas processadas", date_str, len(rows))
+
+
+
+    """Generate and store yesterday's report metrics."""
+    from datetime import timedelta
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    _process_reports_for_date(auth, s3, ddb, results, stag_name_by_id or {}, yesterday)
+
+
+def _process_reports_for_date(auth, s3, ddb, results, stag_name_by_id, date_str):
+    """Fetch and store SpringServe report metrics for a specific date.
+
+    Uses start_date/end_date for exact day targeting with
+    America/New_York timezone (matches SpringServe UI default).
 
     Validates: Requirements 4.1, 4.2, 4.3, 4.4
     """
     stag_name_by_id = stag_name_by_id or {}
-    logger.info("Gerando relatórios de métricas")
+    logger.info("Gerando relatórios de métricas para %s", date_str)
     report_body = {
         "async": False,
-        "date_range": "today",
+        "start_date": date_str,
+        "end_date": date_str,
         "dimensions": ["supply_tag_id"],
         "metrics": [
             "requests",
@@ -929,7 +1074,7 @@ def _process_reports(auth, s3, ddb, results, stag_name_by_id=None):
             "rpm",
         ],
         "interval": "Cumulative",
-        "timezone": "Etc/UTC",
+        "timezone": "America/Sao_Paulo",
         "csv": False,
     }
     try:
@@ -939,45 +1084,36 @@ def _process_reports(auth, s3, ddb, results, stag_name_by_id=None):
             json=report_body,
         )
         data = resp.json()
-        logger.info(
-            "Reports API response keys: %s, type: %s",
-            list(data.keys()) if isinstance(data, dict) else type(data).__name__,
-            type(data).__name__,
-        )
-        # API returns "result" (without 's') or "results"
         rows = data.get("result", data.get("results", []))
         if isinstance(data, list):
             rows = data
+        logger.info("Reports %s: %d linhas recebidas", date_str, len(rows))
     except Exception as exc:
-        # Log response body if available
         try:
             body = exc.response.text[:500] if hasattr(exc, 'response') else ""
             logger.error("Reports API error body: %s", body)
         except Exception:
             pass
-        _err(results, "reports", str(exc))
+        _err(results, f"reports_{date_str}", str(exc))
         return
 
     for raw in rows:
         try:
-            # Enrich supply_tag_name from in-memory lookup if API didn't return it
             sid = str(raw.get("supply_tag_id", ""))
             if sid and stag_name_by_id.get(sid):
                 raw.setdefault("supply_tag_name", stag_name_by_id[sid])
-                # Override if API returned empty or numeric-only name
                 api_name = raw.get("supply_tag_name", "")
                 if not api_name or api_name == sid or api_name.lstrip("0123456789") == "":
                     raw["supply_tag_name"] = stag_name_by_id[sid]
+            # Inject date
+            raw["start_date"] = date_str
+            raw["end_date"] = date_str
             config = normalize_report(raw)
             _dual_write(s3, ddb, config, results)
         except Exception as exc:
-            _err(
-                results,
-                f"report_{raw.get('supply_tag_id', '?')}",
-                str(exc),
-            )
+            _err(results, f"report_{date_str}_{raw.get('supply_tag_id', '?')}", str(exc))
 
-    logger.info("Reports: %d linhas processadas", len(rows))
+    logger.info("Reports %s: %d linhas processadas", date_str, len(rows))
 
 
 def _process_scheduled_reports(auth, s3, ddb, results):
@@ -1082,12 +1218,14 @@ def _process_labels(auth, s3, ddb, results):
     """Collect, normalize and store supply and demand labels.
 
     Fetches supply_labels and demand_labels separately.
+    Returns a dict mapping supply_tag_id to label name.
 
     Validates: Requirements 5.3, 5.4, 5.5
     """
     logger.info("Coletando labels")
 
     # Supply labels
+    label_name_by_tag_id = {}
     try:
         raw_supply = _paginate_springserve(
             auth, SPRINGSERVE_ENDPOINTS["supply_labels"]
@@ -1100,6 +1238,10 @@ def _process_labels(auth, s3, ddb, results):
         try:
             config = normalize_label(raw, "supply")
             _dual_write(s3, ddb, config, results)
+            # Build reverse mapping: supply_tag_id → label_name
+            label_name = raw.get("name", "")
+            for tag_id in raw.get("supply_tag_ids", []):
+                label_name_by_tag_id[tag_id] = label_name
         except Exception as exc:
             _err(
                 results,
@@ -1128,7 +1270,8 @@ def _process_labels(auth, s3, ddb, results):
             )
 
     total = len(raw_supply) + len(raw_demand)
-    logger.info("Labels: %d coletados", total)
+    logger.info("Labels: %d coletados, %d supply_tag mappings", total, len(label_name_by_tag_id))
+    return label_name_by_tag_id
 
 
 # -------------------------------------------------------------------
